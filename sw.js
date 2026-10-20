@@ -1,7 +1,8 @@
-const CACHE_NAME = 'lumiere-salon-pwa-v2';
+const CACHE_NAME = 'lumiere-salon-pwa-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
+  './salon-auth.js',
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
@@ -27,6 +28,7 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  if (event.request.url.includes('.supabase.co/')) return;
   event.respondWith(
     caches.match(event.request).then((cached) => {
       const networked = fetch(event.request)
@@ -38,7 +40,7 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => cached);
-      return cached || networked;
+      return networked.catch(() => cached);
     })
   );
 });
