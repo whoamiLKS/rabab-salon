@@ -13,9 +13,10 @@
   function showGate() { gate?.classList.remove('hidden'); }
   function hideGate() { gate?.classList.add('hidden'); }
   async function openSalon() {
-    const { data: { user }, error } = await ensureClient().auth.getUser();
+    const { data: { session }, error } = await ensureClient().auth.getSession();
+    const user = session?.user;
     if (error || !user) { showGate(); return; }
-    const ok = await pullStateFromCloud(true);
+    const ok = await Promise.race([pullStateFromCloud(true), new Promise(resolve => setTimeout(() => resolve(false), 12000))]);
     if (!ok) {
       message('تعذّر تحميل بيانات الصالون من Supabase. تأكدي من الاتصال أو صلاحيات الحساب.');
       showGate();
