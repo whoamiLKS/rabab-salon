@@ -17,6 +17,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com/3.4.17"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     tailwind.config = {
       darkMode: 'class',
@@ -165,6 +166,23 @@
           حفظ الحساب والدخول فورا
         </button>
       </div>
+
+      <!-- Cross-Device Cloud DB & Phone Sync Bar right on Login Page -->
+      <div class="px-6 py-3.5 bg-slate-50 dark:bg-slate-900/90 border-t border-slate-200/80 dark:border-slate-800 flex flex-col gap-2">
+        <div class="flex items-center justify-between gap-2">
+          <span id="authCloudStatusBadge" class="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300">
+            <span id="authCloudDot" class="w-2 h-2 rounded-full bg-amber-500"></span>
+            <span data-i18n="authSyncStatusLabel">التخزين الحالي: محلي على هذا الجهاز</span>
+          </span>
+          <button type="button" id="btnAuthPullCloudQuick" class="hidden text-[11px] font-extrabold text-sky-600 dark:text-sky-400 hover:underline">
+            🔄 تحديث من السحابة
+          </button>
+        </div>
+        <button type="button" id="btnAuthOpenCloudSync" class="w-full py-2 px-3 rounded-xl text-xs font-extrabold bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/70 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/70 transition flex items-center justify-center gap-1.5">
+          <span>☁️</span>
+          <span data-i18n="authOpenSyncBtn">فتح نفس اليوزر والبيانات عالتلفون (ربط قاعدة البيانات / نقل فوري)</span>
+        </button>
+      </div>
     </div>
   </div>
 
@@ -201,6 +219,12 @@
         <button id="btnHeaderQuickDeposit" type="button" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-semibold bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/60 transition" title="تسجيل رعبون للزبونة">
           <span>💵</span>
           <span class="hidden md:inline" data-i18n="quickDepositBtn">دفع رعبون</span>
+        </button>
+
+        <!-- Cloud Database Sync & Phone Transfer Button -->
+        <button id="btnHeaderCloudSync" type="button" class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/70 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/60 transition" title="ربط قاعدة البيانات ومزامنة التلفون واللابتوب">
+          <span id="headerCloudIcon">☁️</span>
+          <span class="hidden lg:inline" data-i18n="headerSyncBtn">مزامنة التلفون</span>
         </button>
 
         <!-- Install PWA on Mobile / Desktop Button -->
@@ -1290,11 +1314,133 @@
     </div>
   </div>
 
+  <!-- 11. Cloud Database & Cross-Device Phone Sync Modal (z-[60] so it works over Auth screen too) -->
+  <div id="modalCloudSync" class="fixed inset-0 z-[60] hidden bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white dark:bg-[#1a141f] w-full max-w-xl rounded-t-3xl sm:rounded-2xl border border-sky-200 dark:border-sky-900/60 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+      <div class="px-5 py-4 bg-gradient-to-r from-sky-600 to-rose-600 text-white flex items-center justify-between shrink-0">
+        <div class="flex items-center gap-2.5">
+          <span class="text-xl">☁️</span>
+          <div>
+            <h3 class="font-extrabold text-sm sm:text-base" data-i18n="cloudModalTitle">ربط قاعدة البيانات ومزامنة اليوزر مع التلفون</h3>
+            <p class="text-[11px] text-sky-100" data-i18n="cloudModalSub">اجعلي اللابتوب والتلفون يفتحان نفس الحساب (اليوزر) ونفس الفواتير والمواعيد</p>
+          </div>
+        </div>
+        <button type="button" data-close-modal="modalCloudSync" class="text-white/80 hover:text-white font-bold text-lg px-1">✕</button>
+      </div>
+
+      <div class="p-5 space-y-5 overflow-y-auto custom-scroll text-xs sm:text-sm">
+        <!-- Why this happens explanation -->
+        <div class="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/70 text-amber-900 dark:text-amber-200 space-y-1">
+          <div class="font-extrabold flex items-center gap-1.5">
+            <span>💡</span>
+            <span data-i18n="cloudWhyTitle">لماذا لم يظهر نفس اليوزر على التلفون تلقائياً؟</span>
+          </div>
+          <p class="text-[11px] sm:text-xs leading-relaxed" data-i18n="cloudWhyDesc">
+            التطبيق يحفظ البيانات افتراضياً داخل ذاكرة متصفح الجهاز نفسه (LocalStorage). لتوحيد اليوزر والبيانات بين التلفون واللابتوب، لديكِ حلّان جاهزان فوراً:
+          </p>
+        </div>
+
+        <!-- OPTION 1: Supabase Cloud Database Integration -->
+        <div class="p-4 rounded-2xl bg-emerald-50/70 dark:bg-slate-800/70 border-2 border-emerald-300 dark:border-emerald-800/70 space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <h4 class="font-extrabold text-emerald-900 dark:text-emerald-300 text-sm flex items-center gap-1.5">
+              <span>⚡</span>
+              <span data-i18n="cloudOpt1Title">ربط قاعدة بيانات Supabase (مزامنة تلقائية بين اللابتوب والتلفون)</span>
+            </h4>
+            <span id="modalCloudConnectedPill" class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">غير مربوط</span>
+          </div>
+
+          <!-- Step A: 1-Click SQL Table Setup in Supabase -->
+          <div class="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-emerald-200 dark:border-slate-700 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-[11px] font-extrabold text-slate-800 dark:text-slate-200">الخطوة 1: إنشاء جدول الصالون في Supabase (SQL Editor)</span>
+              <button type="button" id="btnCopySupabaseSql" class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition">
+                📋 نسخ كود SQL
+              </button>
+            </div>
+            <pre id="supabaseSqlCodeBlock" dir="ltr" class="p-2 rounded-lg bg-slate-900 text-emerald-300 text-[10px] font-mono overflow-x-auto leading-relaxed select-all">create table if not exists public.salon_data (
+  id text primary key,
+  state_json jsonb not null,
+  updated_at timestamptz default now()
+);
+alter table public.salon_data disable row level security;
+grant all on table public.salon_data to anon, authenticated, service_role;</pre>
+          </div>
+
+          <!-- Step B: Project URL & Anon/Publishable Key Inputs (Pre-configured!) -->
+          <div class="space-y-2">
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">الخطوة 2: رابط مشروع Supabase (مضبوط ومجهز داخل الكود):</label>
+              <input type="url" id="cloudDbUrlInput" dir="ltr" value="https://myxlxungnaoxyxoahidn.supabase.co" placeholder="https://myxlxungnaoxyxoahidn.supabase.co" class="w-full px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">مفتاح Supabase Publishable / Anon Key (مضبوط ومجهز داخل الكود):</label>
+              <input type="text" id="supabaseAnonKeyInput" dir="ltr" value="sb_publishable_2WViKoUa3bdQ8U1UH9_JPw__mXRl7UB" placeholder="sb_publishable_..." class="w-full px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+            <p class="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
+              ✅ تم دمج رابط ومفتاح مشروعك (<code>myxlxungnaoxyxoahidn.supabase.co</code>) داخل الكود مباشرة! فقط شغّل كود الـ SQL أعلاه مرة واحدة في Supabase &rarr; SQL Editor وسيعمل التلفون واللابتوب على نفس اليوزر والبيانات فوراً.
+            </p>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2 pt-1">
+            <button type="button" id="btnSaveCloudDbUrl" class="flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition">
+              ⚡ حفظ والاتصال بـ Supabase الآن
+            </button>
+            <button type="button" id="btnPullFromCloudNow" class="py-2.5 px-3 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition">
+              ⬇️ سحب اليوزر والبيانات من Supabase
+            </button>
+            <button type="button" id="btnDisconnectCloudDb" class="py-2 px-2.5 rounded-xl text-xs font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-red-100 hover:text-red-600 transition">
+              إلغاء الربط
+            </button>
+          </div>
+        </div>
+
+        <!-- OPTION 2: Instant 1-Click Link / Code Transfer to Phone (Zero Cloud Setup Required!) -->
+        <div class="p-4 rounded-2xl bg-rose-50/70 dark:bg-slate-800/50 border border-rose-200 dark:border-rose-900/60 space-y-3">
+          <h4 class="font-extrabold text-rose-800 dark:text-rose-300 text-sm flex items-center gap-1.5">
+            <span>2️⃣</span>
+            <span data-i18n="cloudOpt2Title">الحل الثاني (فوري بدون قاعدة بيانات): نقل اليوزر والبيانات للتلفون برابط أو كود</span>
+          </h4>
+          <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed" data-i18n="cloudOpt2Desc">
+            اضغطي على <b>"نسخ رابط نقل الحساب للتلفون"</b> وأرسليه لنفسك على واتساب، وبمجرد فتح الرابط من التلفون سيأخذ التلفون نفس اليوزر والباسوورد وكل البيانات تلقائياً!
+          </p>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <button type="button" id="btnCopySyncLinkForPhone" class="py-2.5 px-3 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition flex items-center justify-center gap-1.5">
+              <span>📲</span>
+              <span>نسخ رابط نقل اليوزر والبيانات للتلفون</span>
+            </button>
+            <button type="button" id="btnSendSyncLinkWhatsapp" class="py-2.5 px-3 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition flex items-center justify-center gap-1.5">
+              <span>💬</span>
+              <span>إرسال رابط المزامنة عبر واتساب</span>
+            </button>
+          </div>
+
+          <!-- Manual Sync Code Paste Box (for pasting on phone) -->
+          <div class="pt-2 border-t border-rose-200/60 dark:border-slate-700 space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="text-[11px] font-bold text-slate-700 dark:text-slate-300">أو انسخي كود الحساب من اللابتوب والصقيه هنا على التلفون:</label>
+              <button type="button" id="btnCopyRawSyncCode" class="text-[11px] font-extrabold text-rose-600 dark:text-rose-400 hover:underline">📋 نسخ كود الحساب</button>
+            </div>
+            <div class="flex gap-2">
+              <input type="text" id="syncCodePasteInput" dir="ltr" placeholder="الصقي كود المزامنة هنا عالتلفون..." class="flex-1 px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
+              <button type="button" id="btnApplySyncCode" class="px-4 py-2 rounded-xl text-xs font-extrabold bg-slate-900 dark:bg-rose-600 text-white shrink-0">تطبيق فوراً ✓</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     // ==================== BILINGUAL TRANSLATION DICTIONARY (AR / EN) ====================
     const I18N = {
       ar: {
         authWelcomeTitle: 'صالون لوميير للسيدات',
+        authOpenSyncBtn: 'فتح نفس اليوزر والبيانات عالتلفون (ربط قاعدة البيانات / نقل فوري)',
+        headerSyncBtn: 'مزامنة التلفون',
+        cloudModalTitle: 'ربط قاعدة البيانات ومزامنة اليوزر مع التلفون',
+        cloudModalSub: 'اجعلي اللابتوب والتلفون يفتحان نفس الحساب (اليوزر) ونفس الفواتير والمواعيد',
         installAppBtn: 'تثبيت التطبيق',
         mobNavHome: 'الرئيسية',
         mobNavPos: 'فاتورة',
@@ -1491,6 +1637,10 @@
       },
       en: {
         authWelcomeTitle: 'Lumière Beauty Lounge',
+        authOpenSyncBtn: 'Use Same User & Data on Phone (Cloud DB / Instant Sync)',
+        headerSyncBtn: 'Phone Sync',
+        cloudModalTitle: 'Cloud Database & Cross-Device Phone Sync',
+        cloudModalSub: 'Share the exact same login credentials, appointments, and invoices across laptop & phone',
         installAppBtn: 'Install App',
         mobNavHome: 'Home',
         mobNavPos: 'Invoice',
@@ -1697,6 +1847,14 @@
     };
 
     const STORAGE_KEY = 'lumiere_salon_v2_state';
+    const CLOUD_URL_STORAGE_KEY = 'lumiere_salon_supabase_url';
+    const CLOUD_KEY_STORAGE_KEY = 'lumiere_salon_supabase_anon_key';
+
+    // ==================== SUPABASE CONFIGURATION ====================
+    const DEFAULT_SUPABASE_URL = 'https://myxlxungnaoxyxoahidn.supabase.co';
+    const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_2WViKoUa3bdQ8U1UH9_JPw__mXRl7UB';
+    const SUPABASE_TABLE_NAME = 'salon_data';
+    const SUPABASE_ROW_ID = 'main_salon';
 
     function getTodayIso() {
       const d = new Date();
@@ -1851,6 +2009,23 @@
     let revenueChartInstance = null;
     let categoryChartInstance = null;
 
+    function getSupabaseCredentials() {
+      try {
+        const url = ((localStorage.getItem(CLOUD_URL_STORAGE_KEY) || DEFAULT_SUPABASE_URL) || '').trim().replace(/\/+$/, '');
+        const key = ((localStorage.getItem(CLOUD_KEY_STORAGE_KEY) || DEFAULT_SUPABASE_ANON_KEY) || '').trim();
+        return { url, key, isConfigured: Boolean(url && key) };
+      } catch (e) {
+        const url = (DEFAULT_SUPABASE_URL || '').trim().replace(/\/+$/, '');
+        const key = (DEFAULT_SUPABASE_ANON_KEY || '').trim();
+        return { url, key, isConfigured: Boolean(url && key) };
+      }
+    }
+
+    function getConfiguredCloudDbUrl() {
+      const { url, isConfigured } = getSupabaseCredentials();
+      return isConfigured ? url : '';
+    }
+
     function loadState() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
@@ -1869,11 +2044,295 @@
       return getDefaultSampleState();
     }
 
-    function saveState() {
+    let cloudSyncTimeout = null;
+    function saveState(skipCloudPush = false) {
       try {
+        state.updatedAt = Date.now();
         localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
       } catch (e) {
         console.warn('LocalStorage save fallback:', e);
+      }
+      const { isConfigured } = getSupabaseCredentials();
+      if (!skipCloudPush && isConfigured) {
+        clearTimeout(cloudSyncTimeout);
+        cloudSyncTimeout = setTimeout(() => {
+          pushStateToCloud(true);
+        }, 350);
+      }
+      updateCloudStatusBadges();
+    }
+
+    let cachedSbClient = null;
+    let cachedSbKeySig = '';
+
+    function getSupabaseClientInstance(url, key) {
+      if (window.supabase && typeof window.supabase.createClient === 'function') {
+        const sig = `${url}|${key}`;
+        if (!cachedSbClient || cachedSbKeySig !== sig) {
+          cachedSbClient = window.supabase.createClient(url, key, {
+            auth: { persistSession: false }
+          });
+          cachedSbKeySig = sig;
+        }
+        return cachedSbClient;
+      }
+      return null;
+    }
+
+    function buildSupabaseRestHeaders(key, extra = {}) {
+      const headers = {
+        'apikey': key,
+        ...extra
+      };
+      // Only send Authorization: Bearer if key is a JWT (eyJ...), as sb_publishable_ keys use apikey header directly
+      if (key.startsWith('eyJ')) {
+        headers['Authorization'] = `Bearer ${key}`;
+      }
+      return headers;
+    }
+
+    async function pushStateToCloud(silent = false) {
+      const { url, key, isConfigured } = getSupabaseCredentials();
+      if (!isConfigured) return false;
+
+      const payload = JSON.parse(JSON.stringify(state));
+
+      try {
+        const sb = getSupabaseClientInstance(url, key);
+        if (sb) {
+          const { error } = await sb
+            .from(SUPABASE_TABLE_NAME)
+            .upsert(
+              {
+                id: SUPABASE_ROW_ID,
+                state_json: payload,
+                updated_at: new Date().toISOString()
+              },
+              { onConflict: 'id' }
+            );
+          if (error) throw error;
+        } else {
+          const endpoint = `${url}/rest/v1/${SUPABASE_TABLE_NAME}`;
+          const res = await fetch(endpoint, {
+            method: 'POST',
+            headers: buildSupabaseRestHeaders(key, {
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates,return=minimal'
+            }),
+            body: JSON.stringify({
+              id: SUPABASE_ROW_ID,
+              state_json: payload,
+              updated_at: new Date().toISOString()
+            })
+          });
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`HTTP ${res.status}: ${errText}`);
+          }
+        }
+
+        if (!silent) {
+          showToast(state.lang === 'ar' ? '⚡ تم حفظ ومزامنة اليوزر والبيانات على Supabase بنجاح!' : '⚡ Synced to Supabase successfully!');
+        }
+        updateCloudStatusBadges(true);
+        return true;
+      } catch (err) {
+        console.warn('Supabase push warning:', err);
+        if (!silent) {
+          showToast(
+            state.lang === 'ar'
+              ? 'لتفعيل المزامنة: افتحي Supabase -> SQL Editor وشغّلي كود إنشاء جدول salon_data ثم اضغطي حفظ!'
+              : 'Run the SQL snippet in Supabase SQL Editor to create table salon_data.',
+            'warning'
+          );
+        }
+        return false;
+      }
+    }
+
+    async function pullStateFromCloud(silent = false) {
+      const { url, key, isConfigured } = getSupabaseCredentials();
+      if (!isConfigured) return false;
+
+      try {
+        let rows = null;
+        const sb = getSupabaseClientInstance(url, key);
+        if (sb) {
+          const { data, error } = await sb
+            .from(SUPABASE_TABLE_NAME)
+            .select('state_json, updated_at')
+            .eq('id', SUPABASE_ROW_ID);
+          if (error) throw error;
+          rows = data;
+        } else {
+          const endpoint = `${url}/rest/v1/${SUPABASE_TABLE_NAME}?id=eq.${SUPABASE_ROW_ID}&select=state_json,updated_at`;
+          const res = await fetch(endpoint, {
+            method: 'GET',
+            headers: buildSupabaseRestHeaders(key, { 'Accept': 'application/json' }),
+            cache: 'no-store'
+          });
+          if (!res.ok) {
+            const errText = await res.text();
+            throw new Error(`HTTP ${res.status}: ${errText}`);
+          }
+          rows = await res.json();
+        }
+
+        if (Array.isArray(rows) && rows.length > 0 && rows[0].state_json) {
+          const remoteData = rows[0].state_json;
+          if (remoteData && Array.isArray(remoteData.clients) && Array.isArray(remoteData.invoices)) {
+            const keepAuthSession = state.auth?.isAuthenticated || false;
+            state = {
+              ...remoteData,
+              auth: {
+                ...(remoteData.auth || { username: 'admin', password: '1234', ownerName: 'مدام ريما' }),
+                isAuthenticated: keepAuthSession
+              }
+            };
+            saveState(true);
+            renderAll();
+            if (!silent) {
+              showToast(state.lang === 'ar' ? `⚡ تم سحب اليوزر (${state.auth.username}) والبيانات من Supabase!` : '⚡ Pulled latest user & data from Supabase!');
+            }
+            updateCloudStatusBadges(true);
+            return true;
+          }
+        } else if (Array.isArray(rows) && rows.length === 0) {
+          // Table exists and is empty -> seed it with current local state!
+          await pushStateToCloud(silent);
+          return true;
+        }
+      } catch (err) {
+        console.warn('Supabase pull warning:', err);
+        if (!silent) {
+          showToast(
+            state.lang === 'ar'
+              ? 'تأكدي من تشغيل كود الـ SQL (إنشاء جدول salon_data) داخل Supabase -> SQL Editor.'
+              : 'Ensure table salon_data is created in Supabase SQL Editor.',
+            'warning'
+          );
+        }
+      }
+      return false;
+    }
+
+    function encodeSyncToken() {
+      const creds = getSupabaseCredentials();
+      const exportObj = {
+        auth: {
+          username: state.auth?.username || 'admin',
+          password: state.auth?.password || '1234',
+          ownerName: state.auth?.ownerName || 'مدام ريما'
+        },
+        settings: state.settings,
+        services: state.services,
+        clients: state.clients,
+        appointments: state.appointments,
+        invoices: state.invoices,
+        debtPayments: state.debtPayments,
+        expenses: state.expenses,
+        supabaseUrl: creds.url,
+        supabaseKey: creds.key
+      };
+      const jsonStr = JSON.stringify(exportObj);
+      return btoa(unescape(encodeURIComponent(jsonStr)));
+    }
+
+    function applySyncTokenString(rawToken) {
+      try {
+        let token = (rawToken || '').trim();
+        if (!token) return false;
+        if (token.includes('salon_sync=')) {
+          const u = new URL(token);
+          token = u.searchParams.get('salon_sync') || '';
+        }
+        const jsonStr = decodeURIComponent(escape(atob(token)));
+        const imported = JSON.parse(jsonStr);
+        if (imported && imported.auth && Array.isArray(imported.clients)) {
+          if (imported.supabaseUrl && imported.supabaseKey) {
+            localStorage.setItem(CLOUD_URL_STORAGE_KEY, imported.supabaseUrl);
+            localStorage.setItem(CLOUD_KEY_STORAGE_KEY, imported.supabaseKey);
+          }
+          state = {
+            ...state,
+            ...imported,
+            auth: {
+              ...imported.auth,
+              isAuthenticated: true
+            }
+          };
+          saveState(true);
+          renderAll();
+          document.getElementById('modalCloudSync')?.classList.add('hidden');
+          showToast(state.lang === 'ar' ? `🎉 تم نقل الحساب (${state.auth.username}) وإعدادات Supabase إلى هذا الجهاز بنجاح!` : `🎉 Account (${state.auth.username}) & Supabase synced!`);
+          return true;
+        }
+      } catch (e) {
+        console.warn('Sync token decode error:', e);
+      }
+      showToast(state.lang === 'ar' ? 'كود المزامنة غير صالح، تأكدي من نسخه بالكامل.' : 'Invalid sync code.', 'error');
+      return false;
+    }
+
+    function checkUrlForInstantSync() {
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const syncParam = params.get('salon_sync');
+        const sbUrlParam = params.get('supabase_url');
+        const sbKeyParam = params.get('supabase_key');
+        if (sbUrlParam && sbKeyParam) {
+          localStorage.setItem(CLOUD_URL_STORAGE_KEY, sbUrlParam.trim());
+          localStorage.setItem(CLOUD_KEY_STORAGE_KEY, sbKeyParam.trim());
+          pullStateFromCloud(false);
+        }
+        if (syncParam) {
+          const ok = applySyncTokenString(syncParam);
+          if (ok && window.history && window.history.replaceState) {
+            const cleanUrl = window.location.origin + window.location.pathname;
+            window.history.replaceState({}, document.title, cleanUrl);
+          }
+        }
+      } catch (e) {
+        console.warn('URL sync param check:', e);
+      }
+    }
+
+    function updateCloudStatusBadges(isConnectedOverride = null) {
+      const isAr = state.lang === 'ar';
+      const { isConfigured } = getSupabaseCredentials();
+      const hasCloud = Boolean(isConfigured) || Boolean(isConnectedOverride);
+
+      const dot = document.getElementById('authCloudDot');
+      const statusTxt = document.querySelector('[data-i18n="authSyncStatusLabel"]');
+      const quickPullBtn = document.getElementById('btnAuthPullCloudQuick');
+      const pill = document.getElementById('modalCloudConnectedPill');
+      const localBadge = document.querySelector('[data-i18n="localBadge"]');
+
+      if (dot) {
+        dot.className = hasCloud ? 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse' : 'w-2 h-2 rounded-full bg-amber-500';
+      }
+      if (statusTxt) {
+        statusTxt.textContent = hasCloud
+          ? (isAr ? `⚡ متصل بـ Supabase (اليوزر الحالي: ${state.auth?.username || 'admin'})` : `⚡ Supabase Active (User: ${state.auth?.username || 'admin'})`)
+          : (isAr ? `التخزين الحالي: محلي على هذا الجهاز (اليوزر: ${state.auth?.username || 'admin'})` : `Local Storage Only (User: ${state.auth?.username || 'admin'})`);
+      }
+      if (quickPullBtn) {
+        quickPullBtn.classList.toggle('hidden', !hasCloud);
+      }
+      if (pill) {
+        pill.textContent = hasCloud ? (isAr ? '⚡ متصل بـ Supabase' : '⚡ Supabase Connected') : (isAr ? 'محلي فقط' : 'Local Only');
+        pill.className = hasCloud
+          ? 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
+          : 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300';
+      }
+      if (localBadge && hasCloud) {
+        localBadge.textContent = isAr ? '⚡ متزامن مع Supabase' : '⚡ Supabase Synced';
+      }
+      const hintEl = document.querySelector('[data-i18n="authDefaultHint"]');
+      if (hintEl && state.auth?.username) {
+        hintEl.innerHTML = isAr
+          ? `اليوزر المسجل على هذا الجهاز: <b>${state.auth.username}</b> ${state.auth.username === 'admin' ? '| الرمز الافتراضي <b>1234</b>' : ''}`
+          : `Current device user: <b>${state.auth.username}</b>`;
       }
     }
 
@@ -3335,9 +3794,15 @@
         document.getElementById('regUsernameInput').value = state.auth?.username || 'admin';
       });
 
-      document.getElementById('btnAuthLoginSubmit').addEventListener('click', () => {
+      document.getElementById('btnAuthLoginSubmit').addEventListener('click', async () => {
         const u = (document.getElementById('loginUsernameInput').value || '').trim();
         const p = (document.getElementById('loginPasswordInput').value || '').trim();
+
+        // If Cloud DB is configured, pull latest credentials first so phone recognizes new user immediately
+        if (getConfiguredCloudDbUrl()) {
+          await pullStateFromCloud(true);
+        }
+
         const validU = state.auth?.username || 'admin';
         const validP = state.auth?.password || '1234';
 
@@ -3347,7 +3812,12 @@
           renderAuthScreen();
           showToast(state.lang === 'ar' ? `أهلاً بكِ ${state.auth?.ownerName || ''} في نظام إدارة الصالون ✨` : 'Welcome back!');
         } else {
-          showToast(state.lang === 'ar' ? 'اسم المستخدم أو كلمة المرور غير صحيحة!' : 'Invalid username or password!', 'error');
+          showToast(
+            state.lang === 'ar'
+              ? `اسم المستخدم أو الرمز غير مطابق لليوزر المسجل على هذا الجهاز (${validU}). إذا غيرتِ اليوزر من اللابتوب، اضغطي "☁️ فتح نفس اليوزر عالتلفون" بالأسفل!`
+              : `Invalid credentials for this device (expected user: ${validU}). Use Cloud/Phone Sync below if updated on another device!`,
+            'error'
+          );
         }
       });
 
@@ -4222,12 +4692,128 @@
       }
     }
 
+    function setupCloudSyncListeners() {
+      const openSyncModal = () => {
+        const creds = getSupabaseCredentials();
+        const urlInput = document.getElementById('cloudDbUrlInput');
+        const keyInput = document.getElementById('supabaseAnonKeyInput');
+        if (urlInput) urlInput.value = creds.url;
+        if (keyInput) keyInput.value = creds.key;
+        updateCloudStatusBadges();
+        document.getElementById('modalCloudSync').classList.remove('hidden');
+      };
+
+      document.getElementById('btnAuthOpenCloudSync')?.addEventListener('click', openSyncModal);
+      document.getElementById('btnHeaderCloudSync')?.addEventListener('click', openSyncModal);
+
+      document.getElementById('btnCopySupabaseSql')?.addEventListener('click', () => {
+        const sqlText = document.getElementById('supabaseSqlCodeBlock')?.textContent || '';
+        const ta = document.createElement('textarea');
+        ta.value = sqlText;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast(state.lang === 'ar' ? '📋 تم نسخ كود SQL! الصقيه في Supabase -> SQL Editor واضغطي Run.' : '📋 SQL copied! Paste in Supabase SQL Editor and click Run.');
+      });
+
+      document.getElementById('btnAuthPullCloudQuick')?.addEventListener('click', async () => {
+        await pullStateFromCloud(false);
+        document.getElementById('loginUsernameInput').value = state.auth?.username || 'admin';
+      });
+
+      document.getElementById('btnSaveCloudDbUrl')?.addEventListener('click', async () => {
+        const urlVal = (document.getElementById('cloudDbUrlInput').value || '').trim().replace(/\/+$/, '');
+        const keyVal = (document.getElementById('supabaseAnonKeyInput').value || '').trim();
+        if (!urlVal || !keyVal) {
+          showToast(state.lang === 'ar' ? 'يرجى إدخال Project URL ومفتاح anon public key من Supabase' : 'Please enter both Supabase Project URL and anon key', 'error');
+          return;
+        }
+        localStorage.setItem(CLOUD_URL_STORAGE_KEY, urlVal);
+        localStorage.setItem(CLOUD_KEY_STORAGE_KEY, keyVal);
+        updateCloudStatusBadges(true);
+        const pulled = await pullStateFromCloud(false);
+        if (pulled) {
+          await pushStateToCloud(true);
+          document.getElementById('loginUsernameInput').value = state.auth?.username || 'admin';
+        }
+      });
+
+      document.getElementById('btnPullFromCloudNow')?.addEventListener('click', async () => {
+        const urlVal = (document.getElementById('cloudDbUrlInput').value || '').trim().replace(/\/+$/, '');
+        const keyVal = (document.getElementById('supabaseAnonKeyInput').value || '').trim();
+        if (urlVal) localStorage.setItem(CLOUD_URL_STORAGE_KEY, urlVal);
+        if (keyVal) localStorage.setItem(CLOUD_KEY_STORAGE_KEY, keyVal);
+        await pullStateFromCloud(false);
+        document.getElementById('loginUsernameInput').value = state.auth?.username || 'admin';
+      });
+
+      document.getElementById('btnDisconnectCloudDb')?.addEventListener('click', () => {
+        localStorage.removeItem(CLOUD_URL_STORAGE_KEY);
+        localStorage.removeItem(CLOUD_KEY_STORAGE_KEY);
+        document.getElementById('cloudDbUrlInput').value = '';
+        document.getElementById('supabaseAnonKeyInput').value = '';
+        updateCloudStatusBadges(false);
+        showToast(state.lang === 'ar' ? 'تم إلغاء ربط Supabase والعودة للحفظ المحلي فقط.' : 'Disconnected Supabase.');
+      });
+
+      document.getElementById('btnCopySyncLinkForPhone')?.addEventListener('click', () => {
+        const token = encodeSyncToken();
+        const baseUrl = window.location.origin && window.location.origin !== 'null'
+          ? (window.location.origin + window.location.pathname)
+          : 'https://your-salon-app.vercel.app/';
+        const fullSyncUrl = `${baseUrl}?salon_sync=${encodeURIComponent(token)}`;
+        const ta = document.createElement('textarea');
+        ta.value = fullSyncUrl;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast(state.lang === 'ar' ? '📲 تم نسخ رابط المزامنة! أرسليه لتلفونك وافتحيه ليأخذ نفس اليوزر والبيانات فوراً.' : '📲 Sync link copied! Open it on your phone.');
+      });
+
+      document.getElementById('btnSendSyncLinkWhatsapp')?.addEventListener('click', () => {
+        const token = encodeSyncToken();
+        const baseUrl = window.location.origin && window.location.origin !== 'null'
+          ? (window.location.origin + window.location.pathname)
+          : '';
+        const linkPart = baseUrl ? `${baseUrl}?salon_sync=${encodeURIComponent(token)}` : token;
+        const msg = `☁️ *رابط نقل حساب وبيانات الصالون للموبايل* (${state.settings?.nameAr || 'Lumière Salon'})\n` +
+          `اليوزر: *${state.auth?.username || 'admin'}*\n\n` +
+          `افتحي هذا الرابط على التلفون (أو انسخي الكود والصقيه في نافذة المزامنة) ليفتح نفس الحساب والفواتير:\n${linkPart}`;
+        sendWhatsAppMessage(state.settings?.phone || '', msg);
+      });
+
+      document.getElementById('btnCopyRawSyncCode')?.addEventListener('click', () => {
+        const token = encodeSyncToken();
+        const ta = document.createElement('textarea');
+        ta.value = token;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        showToast(state.lang === 'ar' ? '📋 تم نسخ كود الحساب! الصقيه في التلفون واضغطي تطبيق.' : '📋 Sync code copied!');
+      });
+
+      document.getElementById('btnApplySyncCode')?.addEventListener('click', () => {
+        const raw = document.getElementById('syncCodePasteInput').value;
+        applySyncTokenString(raw);
+      });
+    }
+
     // Initialize Application
-    window.addEventListener('DOMContentLoaded', () => {
+    window.addEventListener('DOMContentLoaded', async () => {
       setupEventListeners();
+      setupCloudSyncListeners();
       initPwaSupport();
+      checkUrlForInstantSync();
+      updateCloudStatusBadges();
       renderAuthScreen();
       switchTab(state.activeTab || 'dashboard');
+      if (getConfiguredCloudDbUrl()) {
+        await pullStateFromCloud(true);
+        document.getElementById('loginUsernameInput').value = state.auth?.username || 'admin';
+      }
     });
   </script>
 </body>
