@@ -2,6 +2,25 @@
 (function () {
   let gate;
   let client;
+  let realtimeChannel;
+  let refreshing = false;
+  let lastCloudUpdate = '';
+  async function refreshRemote() {
+    if (refreshing || document.hidden || cloudSyncTimeout) return;
+    refreshing = true;
+    try { await pullStateFromCloud(true); } finally { refreshing = false; }
+  }
+  function subscribeRealtime() {
+    if (realtimeChannel) return;
+    realtimeChannel = ensureClient().channel('salon-live-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'salon_data', filter: 'id=eq.main_salon' }, payload => {
+        const stamp = payload.new?.updated_at || '';
+        if (stamp && stamp === lastCloudUpdate) return;
+        lastCloudUpdate = stamp;
+        refreshRemote();
+      })
+      .subscribe();
+  }
   const $ = id => document.getElementById(id);
   const ensureClient = () => {
     const c = getSupabaseCredentials();
@@ -28,6 +47,7 @@
     renderAll();
     renderAuthScreen();
     hideGate();
+    subscribeRealtime();
   }
   document.addEventListener('DOMContentLoaded', async () => {
     gate = document.createElement('section');
@@ -46,6 +66,8 @@
       <p class="mt-3 text-xs text-slate-500">الحساب يُنشأ من Supabase Dashboard → Authentication → Users، وليس من الصفحة العامة.</p>
     </div>`;
     document.body.appendChild(gate);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden && realtimeChannel) refreshRemote(); });
+    window.addEventListener('focus', () => { if (realtimeChannel) refreshRemote(); });
     $('salon-secure-login').addEventListener('submit', async e => {
       e.preventDefault();
       message('جارٍ التحقق من الحساب...');
@@ -67,6 +89,7 @@
     logout?.addEventListener('click', async e => {
       e.stopImmediatePropagation();
       e.preventDefault();
+      if (realtimeChannel) { await ensureClient().removeChannel(realtimeChannel); realtimeChannel = null; }
       try { await ensureClient().auth.signOut(); } catch (_) {}
       state.auth.isAuthenticated = false;
       saveState(true);
