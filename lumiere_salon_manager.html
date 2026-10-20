@@ -2057,7 +2057,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
         clearTimeout(cloudSyncTimeout);
         cloudSyncTimeout = setTimeout(() => {
           pushStateToCloud(true);
-        }, 350);
+        }, 1200);
       }
       updateCloudStatusBadges();
     }
@@ -4811,10 +4811,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       updateCloudStatusBadges();
       renderAuthScreen();
       switchTab(state.activeTab || 'dashboard');
-      if (getConfiguredCloudDbUrl()) {
-        await pullStateFromCloud(true);
-        document.getElementById('loginUsernameInput').value = state.auth?.username || 'admin';
-      }
+      // Cloud data is loaded once by salon-auth.js after session validation.
     });
   </script>
   <script src="/salon-auth.js"></script>
