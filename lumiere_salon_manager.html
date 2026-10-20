@@ -2096,6 +2096,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       if (!isConfigured) return false;
 
       const payload = JSON.parse(JSON.stringify(state));
+      if (payload.auth) { delete payload.auth.password; delete payload.auth.isAuthenticated; }
 
       try {
         const sb = getSupabaseClientInstance(url, key);
