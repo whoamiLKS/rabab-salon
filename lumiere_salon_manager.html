@@ -1,6 +1,16 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" class="light">
 <head>
+  <script>
+    // One-time switch to the dedicated salon project; preserve local salon data.
+    try {
+      if (localStorage.getItem('rabab_supabase_project') !== 'wicakbsswxzhwlbxhxxs') {
+        localStorage.setItem('lumiere_salon_supabase_url', 'https://wicakbsswxzhwlbxhxxs.supabase.co');
+        localStorage.setItem('lumiere_salon_supabase_anon_key', 'sb_publishable_5YMTi1-F-PYkOn5Z1lWfIw_hpYz0jRe');
+        localStorage.setItem('rabab_supabase_project', 'wicakbsswxzhwlbxhxxs');
+      }
+    } catch (error) { console.warn('Could not persist cloud configuration', error); }
+  </script>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="theme-color" content="#e11d4a" />
@@ -1371,27 +1381,32 @@
                 📋 نسخ كود SQL
               </button>
             </div>
-            <pre id="supabaseSqlCodeBlock" dir="ltr" class="p-2 rounded-lg bg-slate-900 text-emerald-300 text-[10px] font-mono overflow-x-auto leading-relaxed select-all">create table if not exists public.salon_data (
-  id text primary key,
-  state_json jsonb not null,
-  updated_at timestamptz default now()
+            <pre id="supabaseSqlCodeBlock" dir="ltr" class="p-2 rounded-lg bg-slate-900 text-emerald-300 text-[10px] font-mono overflow-x-auto leading-relaxed select-all">create table public.salon_data (
+ id text primary key check (id = 'main_salon'),
+ state_json jsonb not null,
+ updated_at timestamptz not null default now()
 );
-alter table public.salon_data disable row level security;
-grant all on table public.salon_data to anon, authenticated, service_role;</pre>
+alter table public.salon_data enable row level security;
+revoke all on public.salon_data from anon, authenticated;
+grant select, insert, update on public.salon_data to authenticated;
+create policy "Salon owner access" on public.salon_data for all to authenticated
+using (id = 'main_salon' and (select auth.jwt()-&gt;'app_metadata'-&gt;&gt;'salon_role') = 'owner')
+with check (id = 'main_salon' and (select auth.jwt()-&gt;'app_metadata'-&gt;&gt;'salon_role') = 'owner');
+alter publication supabase_realtime add table public.salon_data;</pre>
           </div>
 
           <!-- Step B: Project URL & Anon/Publishable Key Inputs (Pre-configured!) -->
           <div class="space-y-2">
             <div>
               <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">الخطوة 2: رابط مشروع Supabase (مضبوط ومجهز داخل الكود):</label>
-              <input type="url" id="cloudDbUrlInput" dir="ltr" value="https://myxlxungnaoxyxoahidn.supabase.co" placeholder="https://myxlxungnaoxyxoahidn.supabase.co" class="w-full px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              <input type="url" id="cloudDbUrlInput" dir="ltr" value="https://wicakbsswxzhwlbxhxxs.supabase.co" placeholder="https://wicakbsswxzhwlbxhxxs.supabase.co" class="w-full px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
             <div>
               <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">مفتاح Supabase Publishable / Anon Key (مضبوط ومجهز داخل الكود):</label>
-              <input type="text" id="supabaseAnonKeyInput" dir="ltr" value="sb_publishable_2WViKoUa3bdQ8U1UH9_JPw__mXRl7UB" placeholder="sb_publishable_..." class="w-full px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+              <input type="text" id="supabaseAnonKeyInput" dir="ltr" value="sb_publishable_5YMTi1-F-PYkOn5Z1lWfIw_hpYz0jRe" placeholder="sb_publishable_..." class="w-full px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
             <p class="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
-              ✅ تم دمج رابط ومفتاح مشروعك (<code>myxlxungnaoxyxoahidn.supabase.co</code>) داخل الكود مباشرة! فقط شغّل كود الـ SQL أعلاه مرة واحدة في Supabase &rarr; SQL Editor وسيعمل التلفون واللابتوب على نفس اليوزر والبيانات فوراً.
+              ✅ تم دمج رابط ومفتاح مشروعك (<code>wicakbsswxzhwlbxhxxs.supabase.co</code>) داخل الكود مباشرة! فقط شغّل كود الـ SQL أعلاه مرة واحدة في Supabase &rarr; SQL Editor وسيعمل التلفون واللابتوب على نفس اليوزر والبيانات فوراً.
             </p>
           </div>
 
@@ -1864,8 +1879,8 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     const CLOUD_KEY_STORAGE_KEY = 'lumiere_salon_supabase_anon_key';
 
     // ==================== SUPABASE CONFIGURATION ====================
-    const DEFAULT_SUPABASE_URL = 'https://myxlxungnaoxyxoahidn.supabase.co';
-    const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_2WViKoUa3bdQ8U1UH9_JPw__mXRl7UB';
+    const DEFAULT_SUPABASE_URL = 'https://wicakbsswxzhwlbxhxxs.supabase.co';
+    const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_5YMTi1-F-PYkOn5Z1lWfIw_hpYz0jRe';
     const SUPABASE_TABLE_NAME = 'salon_data';
     const SUPABASE_ROW_ID = 'main_salon';
 

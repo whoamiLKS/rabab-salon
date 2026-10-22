@@ -16,8 +16,8 @@
     }
     const customUrl = localStorage.getItem('lumiere_salon_supabase_url');
     const customKey = localStorage.getItem('lumiere_salon_supabase_anon_key');
-    const url = String(customUrl || 'https://myxlxungnaoxyxoahidn.supabase.co').trim().replace(/\/+$/, '');
-    const key = String(customKey || 'sb_publishable_2WViKoUa3bdQ8U1UH9_JPw__mXRl7UB').trim();
+    const url = String(customUrl || 'https://wicakbsswxzhwlbxhxxs.supabase.co').trim().replace(/\/+$/, '');
+    const key = String(customKey || 'sb_publishable_5YMTi1-F-PYkOn5Z1lWfIw_hpYz0jRe').trim();
     return { url, key, isConfigured: Boolean(url && key) };
   }
 
