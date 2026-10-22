@@ -2053,6 +2053,10 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     let cloudSyncTimeout = null;
     let cloudWriteInProgress = false;
     let cloudRefreshPending = false;
+    let cloudHasUnsavedChanges = false;
+    let cloudEditSequence = 0;
+    let cloudLastConfirmedUpdate = '';
+    let cloudPushQueue = Promise.resolve();
     function saveState(skipCloudPush = false) {
       try {
         state.updatedAt = Date.now();
@@ -2061,11 +2065,16 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
         console.warn('LocalStorage save fallback:', e);
       }
       const { isConfigured } = getSupabaseCredentials();
+      if (!skipCloudPush) {
+        cloudHasUnsavedChanges = true;
+        cloudEditSequence++;
+      }
       if (!skipCloudPush && isConfigured) {
         clearTimeout(cloudSyncTimeout);
         cloudSyncTimeout = setTimeout(async () => {
           cloudSyncTimeout = null;
-          await pushStateToCloud(true);
+          const saved = await pushStateToCloud(true);
+          if (!saved) return;
           if (cloudRefreshPending && !cloudSyncTimeout && !cloudWriteInProgress) {
             cloudRefreshPending = false;
             await pullStateFromCloud(true);
@@ -2108,24 +2117,24 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       const { url, key, isConfigured } = getSupabaseCredentials();
       if (!isConfigured) return false;
 
+      if (cloudWriteInProgress) { cloudRefreshPending = true; return false; }
       cloudWriteInProgress = true;
+      const savingSequence = cloudEditSequence;
       const payload = JSON.parse(JSON.stringify(state));
       if (payload.auth) { delete payload.auth.password; delete payload.auth.isAuthenticated; }
 
       try {
         const sb = getSupabaseClientInstance(url, key);
         if (sb) {
-          const { error } = await sb
-            .from(SUPABASE_TABLE_NAME)
-            .upsert(
-              {
-                id: SUPABASE_ROW_ID,
-                state_json: payload,
-                updated_at: new Date().toISOString()
-              },
-              { onConflict: 'id' }
-            );
+          const newStamp = new Date().toISOString();
+          let request = sb.from(SUPABASE_TABLE_NAME)
+            .update({state_json: payload, updated_at: newStamp})
+            .eq('id', SUPABASE_ROW_ID);
+          if (cloudLastConfirmedUpdate) request = request.eq('updated_at', cloudLastConfirmedUpdate);
+          const {data, error} = await request.select('updated_at');
           if (error) throw error;
+          if (!data?.length) throw new Error('Cloud version changed or access denied; local edits preserved.');
+          cloudLastConfirmedUpdate = data[0].updated_at;
         } else {
           const endpoint = `${url}/rest/v1/${SUPABASE_TABLE_NAME}`;
           const res = await fetch(endpoint, {
@@ -2149,10 +2158,12 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
         if (!silent) {
           showToast(state.lang === 'ar' ? '⚡ تم حفظ ومزامنة اليوزر والبيانات على Supabase بنجاح!' : '⚡ Synced to Supabase successfully!');
         }
+        if (savingSequence === cloudEditSequence) cloudHasUnsavedChanges = false;
         updateCloudStatusBadges(true);
         return true;
       } catch (err) {
-        console.warn('Supabase push warning:', err);
+        console.error('Supabase write failed; local changes preserved:', err);
+        showToast('⚠️ لم تُحفظ التعديلات على السحابة. بقيت على هذا الجهاز. لا تعيدي تحميل الصفحة قبل حل المزامنة.', 'error');
         if (!silent) {
           showToast(
             state.lang === 'ar'
@@ -2168,7 +2179,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     }
 
     async function pullStateFromCloud(silent = false) {
-      if (cloudSyncTimeout || cloudWriteInProgress) {
+      if (cloudSyncTimeout || cloudWriteInProgress || cloudHasUnsavedChanges) {
         cloudRefreshPending = true;
         return false;
       }
@@ -2202,6 +2213,11 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
         if (Array.isArray(rows) && rows.length > 0 && rows[0].state_json) {
           const remoteData = rows[0].state_json;
           if (remoteData && Array.isArray(remoteData.clients) && Array.isArray(remoteData.invoices)) {
+            if (cloudSyncTimeout || cloudWriteInProgress || cloudHasUnsavedChanges) {
+              cloudRefreshPending = true;
+              return false;
+            }
+            cloudLastConfirmedUpdate = rows[0].updated_at;
             const keepAuthSession = state.auth?.isAuthenticated || false;
             state = {
               ...remoteData,
