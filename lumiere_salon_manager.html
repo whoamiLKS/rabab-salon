@@ -128,7 +128,7 @@
   <!-- Toast Notification Container -->
   <div id="toastContainer" class="fixed bottom-5 z-50 flex flex-col gap-2 max-w-sm w-full px-4 pointer-events-none" style="inset-inline-end: 1rem;"></div>
 
-  <!-- ==================== AUTHENTICATION PAGE OVERLAY ==================== -->
+  <!-- ==================== AUTHENTICATION PAGE OVERLAY (UNIFIED SECURE LOGIN) ==================== -->
   <div id="authScreenOverlay" class="fixed inset-0 z-50 bg-gradient-to-br from-rose-950 via-[#1a1121] to-slate-950 flex items-center justify-center p-4 overflow-y-auto">
     <div class="bg-white dark:bg-[#1a141f] w-full max-w-md rounded-3xl border border-rose-200/80 dark:border-rose-900/50 shadow-2xl overflow-hidden my-auto">
       <!-- Top Brand Banner -->
@@ -138,65 +138,22 @@
         <p class="text-xs text-rose-100 mt-0.5" data-i18n="authWelcomeSub">بوابة الدخول الخاصة بصاحبة وإدارة الصالون</p>
       </div>
 
-      <!-- Auth Mode Switcher (Login / Register) -->
-      <div class="grid grid-cols-2 border-b border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40">
-        <button type="button" id="tabAuthLogin" class="py-3 text-xs sm:text-sm font-extrabold border-b-2 border-rose-600 text-rose-600 dark:text-rose-400 transition" data-i18n="authLoginTab">تسجيل الدخول</button>
-        <button type="button" id="tabAuthRegister" class="py-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-rose-600 transition" data-i18n="authRegisterTab">حساب جديد / تعديل الرمز</button>
-      </div>
-
-      <!-- Login Form -->
-      <div id="authLoginForm" class="p-6 space-y-4">
+      <!-- Single Unified Supabase Login Form -->
+      <form id="salon-secure-login" class="p-6 space-y-4">
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="authUserLabel">اسم المستخدم أو البريد الإلكتروني</label>
-          <input type="text" id="loginUsernameInput" value="admin" placeholder="admin" class="w-full px-3.5 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500" />
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">البريد الإلكتروني (Supabase Email) *</label>
+          <input type="email" id="salon-auth-email" autocomplete="username" required placeholder="owner@example.com" dir="ltr" class="w-full px-3.5 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500" />
         </div>
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="authPassLabel">كلمة المرور / رمز الدخول (PIN)</label>
-          <input type="password" id="loginPasswordInput" value="" placeholder="••••" class="w-full px-3.5 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500" />
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">كلمة المرور (Password) *</label>
+          <input type="password" id="salon-auth-password" autocomplete="current-password" required placeholder="••••••••" dir="ltr" class="w-full px-3.5 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500" />
         </div>
-        <div class="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400 bg-rose-50/70 dark:bg-slate-800/60 px-3 py-2 rounded-xl border border-rose-100 dark:border-slate-700">
-          <span data-i18n="authDefaultHint">الدخول الافتراضي: المستخدم <b>admin</b> | الرمز <b>1234</b></span>
-        </div>
-        <button type="button" id="btnAuthLoginSubmit" class="w-full py-3 rounded-xl text-sm font-extrabold bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-700 hover:to-rose-600 text-white shadow-md transition" data-i18n="authLoginBtn">
-          دخول إلى النظام ✨
+        <button type="submit" id="btnSalonLoginSubmit" class="w-full py-3 rounded-xl text-sm font-extrabold bg-gradient-to-r from-rose-600 to-rose-500 hover:from-rose-700 hover:to-rose-600 text-white shadow-md transition flex items-center justify-center gap-2">
+          <span>دخول إلى النظام ✨</span>
         </button>
-      </div>
-
-      <!-- Register / Update Owner Credentials Form -->
-      <div id="authRegisterForm" class="p-6 space-y-3.5 hidden">
-        <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="authOwnerNameLabel">اسم صاحبة الصالون / المديرة</label>
-          <input type="text" id="regOwnerNameInput" placeholder="مثال: مدام ريما" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="authUserLabel">اسم المستخدم الجديد *</label>
-          <input type="text" id="regUsernameInput" placeholder="مثال: rima" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="authPassLabel">كلمة المرور / رمز الدخول الجديد *</label>
-          <input type="password" id="regPasswordInput" placeholder="••••" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white" />
-        </div>
-        <button type="button" id="btnAuthRegisterSubmit" class="w-full py-3 rounded-xl text-sm font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-md transition" data-i18n="authSaveAccountBtn">
-          حفظ الحساب والدخول فورا
-        </button>
-      </div>
-
-      <!-- Cross-Device Cloud DB & Phone Sync Bar right on Login Page -->
-      <div class="px-6 py-3.5 bg-slate-50 dark:bg-slate-900/90 border-t border-slate-200/80 dark:border-slate-800 flex flex-col gap-2">
-        <div class="flex items-center justify-between gap-2">
-          <span id="authCloudStatusBadge" class="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-600 dark:text-slate-300">
-            <span id="authCloudDot" class="w-2 h-2 rounded-full bg-amber-500"></span>
-            <span data-i18n="authSyncStatusLabel">التخزين الحالي: محلي على هذا الجهاز</span>
-          </span>
-          <button type="button" id="btnAuthPullCloudQuick" class="hidden text-[11px] font-extrabold text-sky-600 dark:text-sky-400 hover:underline">
-            🔄 تحديث من السحابة
-          </button>
-        </div>
-        <button type="button" id="btnAuthOpenCloudSync" class="w-full py-2 px-3 rounded-xl text-xs font-extrabold bg-sky-50 dark:bg-sky-950/60 hover:bg-sky-100 dark:hover:bg-sky-900/70 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800/70 transition flex items-center justify-center gap-1.5">
-          <span>☁️</span>
-          <span data-i18n="authOpenSyncBtn">فتح نفس اليوزر والبيانات عالتلفون (ربط قاعدة البيانات / نقل فوري)</span>
-        </button>
-      </div>
+        <p id="salon-auth-message" role="alert" class="text-xs font-bold text-rose-600 dark:text-rose-400 text-center min-h-[1.25rem]"></p>
+        <p class="text-[11px] text-slate-400 dark:text-slate-500 text-center">🔐 الدخول بحساب صاحبة الصالون المعتمد في Supabase لمزامنة البيانات بين كافة الأجهزة بأمان.</p>
+      </form>
     </div>
   </div>
 
@@ -680,6 +637,10 @@
         </div>
         <div class="flex flex-wrap items-center gap-2">
           <select id="filterServiceCat" class="px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></select>
+          <button type="button" id="btnManageCategories" class="px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 transition flex items-center gap-1.5">
+            <span>📂</span>
+            <span data-i18n="manageCategoriesBtn">إدارة الأقسام</span>
+          </button>
           <button type="button" id="btnOpenNewServiceModal" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition">
             + <span data-i18n="addServiceBtn">إضافة خدمة جديدة</span>
           </button>
@@ -1143,6 +1104,58 @@
           </button>
           <button type="button" data-close-modal="modalClientStatement" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" data-i18n="closeBtn">إغلاق</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Manage Service Categories (إدارة الأقسام) -->
+  <div id="modalManageCategories" class="fixed inset-0 z-40 hidden bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white dark:bg-[#1a141f] w-full max-w-lg rounded-2xl border border-rose-100 dark:border-slate-800 shadow-xl overflow-hidden flex flex-col max-h-[88vh]">
+      <div class="px-5 py-4 bg-rose-50/70 dark:bg-slate-800/60 border-b border-rose-100 dark:border-slate-800 flex items-center justify-between shrink-0">
+        <div>
+          <h3 class="font-extrabold text-base text-slate-900 dark:text-white">📂 إدارة أقسام وتصنيفات الخدمات</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">أضيفي قسماً جديداً، أو عدّلي أسماء الأقسام الحالية، أو احذفي الأقسام</p>
+        </div>
+        <button type="button" data-close-modal="modalManageCategories" class="text-slate-400 hover:text-rose-600 font-bold text-lg">✕</button>
+      </div>
+
+      <div class="p-5 space-y-4 overflow-y-auto custom-scroll flex-1">
+        <!-- Add / Edit Category Form Card -->
+        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-3">
+          <input type="hidden" id="categoryEditId" value="" />
+          <div class="flex items-center justify-between">
+            <h4 id="categoryFormTitle" class="text-xs font-extrabold text-rose-600 dark:text-rose-400">إضافة قسم جديد</h4>
+            <button type="button" id="btnCancelCatEdit" class="hidden text-xs font-bold text-slate-500 hover:text-rose-600">إلغاء التعديل ✕</button>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">اسم القسم (بالعربي) *</label>
+              <input type="text" id="catNameArInput" placeholder="مثال: سبا ومساج" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">اسم القسم بالإنجليزية (اختياري)</label>
+              <input type="text" id="catNameEnInput" placeholder="e.g. Spa & Massage" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white" />
+            </div>
+          </div>
+          <div class="flex items-center justify-end gap-2 pt-1">
+            <button type="button" id="btnSaveCategorySubmit" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition">
+              + حفظ القسم
+            </button>
+          </div>
+        </div>
+
+        <!-- Current Categories List -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <h4 class="text-xs font-bold text-slate-700 dark:text-slate-300">الأقسام الحالية المعتمدة:</h4>
+            <span id="categoriesCountBadge" class="text-[11px] font-bold text-slate-400"></span>
+          </div>
+          <div id="categoriesManagerList" class="space-y-2"></div>
+        </div>
+      </div>
+
+      <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex justify-end shrink-0">
+        <button type="button" data-close-modal="modalManageCategories" class="px-5 py-2 rounded-xl text-xs font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300">إغلاق</button>
       </div>
     </div>
   </div>
@@ -1916,6 +1929,29 @@ $$;</pre>
       waxing: { ar: 'إزالة الشعر والحواجب', en: 'Waxing & Brows' }
     };
 
+    function getCategories() {
+      if (!Array.isArray(state.categories) || state.categories.length === 0) {
+        state.categories = [
+          { id: 'hair', nameAr: 'الشعر', nameEn: 'Hair' },
+          { id: 'nails', nameAr: 'الأظافر', nameEn: 'Nails' },
+          { id: 'facial', nameAr: 'البشرة والوجه', nameEn: 'Facial & Skin' },
+          { id: 'makeup', nameAr: 'المكياج', nameEn: 'Makeup' },
+          { id: 'bridal', nameAr: 'العرائس', nameEn: 'Bridal' },
+          { id: 'waxing', nameAr: 'إزالة الشعر والحواجب', nameEn: 'Waxing & Brows' }
+        ];
+      }
+      return state.categories;
+    }
+
+    function getCategoryLabel(catId) {
+      const cats = getCategories();
+      const c = cats.find(x => x.id === catId);
+      const isAr = state.lang === 'ar';
+      if (c) return isAr ? c.nameAr : (c.nameEn || c.nameAr);
+      if (CATEGORY_LABELS[catId]) return CATEGORY_LABELS[catId][isAr ? 'ar' : 'en'];
+      return catId;
+    }
+
     const STORAGE_KEY = 'lumiere_salon_v2_state';
     const CLOUD_URL_STORAGE_KEY = 'lumiere_salon_supabase_url';
     const CLOUD_KEY_STORAGE_KEY = 'lumiere_salon_supabase_anon_key';
@@ -1966,6 +2002,14 @@ $$;</pre>
           lbpRate: 89500,
           address: 'المتن - جل الديب، الشارع الرئيسي، الطابق الأول'
         },
+        categories: [
+          { id: 'hair', nameAr: 'الشعر', nameEn: 'Hair' },
+          { id: 'nails', nameAr: 'الأظافر', nameEn: 'Nails' },
+          { id: 'facial', nameAr: 'البشرة والوجه', nameEn: 'Facial & Skin' },
+          { id: 'makeup', nameAr: 'المكياج', nameEn: 'Makeup' },
+          { id: 'bridal', nameAr: 'العرائس', nameEn: 'Bridal' },
+          { id: 'waxing', nameAr: 'إزالة الشعر والحواجب', nameEn: 'Waxing & Brows' }
+        ],
         services: [
           { id: 'srv-1', nameAr: 'سشوار وويفي', nameEn: 'Blowdry & Waves', category: 'hair', price: 12, duration: 40 },
           { id: 'srv-2', nameAr: 'قص شعر وتجديد أطراف', nameEn: 'Haircut & Trim', category: 'hair', price: 15, duration: 35 },
@@ -2115,6 +2159,7 @@ $$;</pre>
           ...(defaultState.settings || {}),
           ...(s.settings || {})
         },
+        categories: Array.isArray(s.categories) && s.categories.length > 0 ? s.categories : defaultState.categories,
         services: Array.isArray(s.services) ? s.services : defaultState.services,
         clients: Array.isArray(s.clients) ? s.clients : defaultState.clients,
         appointments: Array.isArray(s.appointments) ? s.appointments : defaultState.appointments,
@@ -2253,7 +2298,7 @@ $$;</pre>
       return headers;
     }
 
-    const businessKeys = ['settings','clients','invoices','appointments','services','debtPayments','expenses','_deleted'];
+    const businessKeys = ['settings','clients','invoices','appointments','services','debtPayments','expenses','_deleted','categories'];
     const businessState = () => Object.fromEntries(businessKeys.map(k => [k, JSON.parse(JSON.stringify(state[k] || (k==='settings'||k==='_deleted'?{}:[])))]));
     const syncClient = () => { const c=getSupabaseCredentials(); return getSupabaseClientInstance(c.url,c.key); };
     const pendingKey = id => 'rabab_pending_v1:' + getSupabaseCredentials().url + ':' + id;
@@ -2449,13 +2494,13 @@ $$;</pre>
       const { isConfigured } = getSupabaseCredentials();
       const hasCloud = Boolean(isConfigured) || Boolean(isConnectedOverride);
 
-      const dot = document.getElementById('authCloudDot');
+      // const dot = null;
       const statusTxt = document.querySelector('[data-i18n="authSyncStatusLabel"]');
-      const quickPullBtn = document.getElementById('btnAuthPullCloudQuick');
+      // const quickPullBtn = null;
       const pill = document.getElementById('modalCloudConnectedPill');
       const localBadge = document.querySelector('[data-i18n="localBadge"]');
 
-      if (dot) {
+      if (false) {
         dot.className = hasCloud ? 'w-2 h-2 rounded-full bg-emerald-500 animate-pulse' : 'w-2 h-2 rounded-full bg-amber-500';
       }
       if (statusTxt) {
@@ -2463,7 +2508,7 @@ $$;</pre>
           ? (isAr ? `⚡ متصل بـ Supabase (اليوزر الحالي: ${state.auth?.username || 'admin'})` : `⚡ Supabase Active (User: ${state.auth?.username || 'admin'})`)
           : (isAr ? `التخزين الحالي: محلي على هذا الجهاز (اليوزر: ${state.auth?.username || 'admin'})` : `Local Storage Only (User: ${state.auth?.username || 'admin'})`);
       }
-      if (quickPullBtn) {
+      if (false) {
         quickPullBtn.classList.toggle('hidden', !hasCloud);
       }
       if (pill) {
@@ -2859,7 +2904,7 @@ $$;</pre>
         });
 
         const keys = Object.keys(catTotals);
-        const labels = keys.map(k => CATEGORY_LABELS[k] ? CATEGORY_LABELS[k][isAr ? 'ar' : 'en'] : k);
+        const labels = keys.map(k => getCategoryLabel(k));
         const values = keys.map(k => catTotals[k]);
 
         if (categoryChartInstance) categoryChartInstance.destroy();
@@ -3017,16 +3062,18 @@ $$;</pre>
 
       updatePosClientDebtBanner();
 
-      const cats = ['all', 'hair', 'nails', 'facial', 'makeup', 'bridal', 'waxing'];
-      document.getElementById('posCategoryPills').innerHTML = cats.map(cat => {
-        const active = posCategoryFilter === cat;
-        const label = cat === 'all' ? t('catAll') : (CATEGORY_LABELS[cat]?.[isAr ? 'ar' : 'en'] || cat);
-        return `
-          <button type="button" data-pos-cat="${cat}" class="px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${active ? 'bg-rose-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-rose-50'}">
-            ${label}
-          </button>
-        `;
-      }).join('');
+      const cats = getCategories();
+      document.getElementById('posCategoryPills').innerHTML =
+        `<button type="button" data-pos-cat="all" class="px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${posCategoryFilter === 'all' ? 'bg-rose-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-rose-50'}">${t('catAll')}</button>` +
+        cats.map(c => {
+          const active = posCategoryFilter === c.id;
+          const label = isAr ? c.nameAr : (c.nameEn || c.nameAr);
+          return `
+            <button type="button" data-pos-cat="${c.id}" class="px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${active ? 'bg-rose-600 text-white shadow-sm' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-rose-50'}">
+              ${label}
+            </button>
+          `;
+        }).join('');
 
       const q = (document.getElementById('posSearchService').value || '').trim().toLowerCase();
       const filteredServices = state.services.filter(s => {
@@ -3270,15 +3317,17 @@ $$;</pre>
       const isAr = state.lang === 'ar';
       const catSel = document.getElementById('filterServiceCat');
       const currentVal = catSel.value || 'all';
-      const cats = ['all', 'hair', 'nails', 'facial', 'makeup', 'bridal', 'waxing'];
-      catSel.innerHTML = cats.map(c => {
-        const label = c === 'all' ? t('catAll') : (CATEGORY_LABELS[c]?.[isAr ? 'ar' : 'en'] || c);
-        return `<option value="${c}" ${c === currentVal ? 'selected' : ''}>${label}</option>`;
-      }).join('');
+      const cats = getCategories();
+
+      catSel.innerHTML = `<option value="all" ${currentVal === 'all' ? 'selected' : ''}>${t('catAll')}</option>` +
+        cats.map(c => {
+          const label = isAr ? c.nameAr : (c.nameEn || c.nameAr);
+          return `<option value="${c.id}" ${c.id === currentVal ? 'selected' : ''}>${label}</option>`;
+        }).join('');
 
       const list = state.services.filter(s => currentVal === 'all' || s.category === currentVal);
       document.getElementById('servicesCatalogGrid').innerHTML = list.map(s => {
-        const catName = CATEGORY_LABELS[s.category]?.[isAr ? 'ar' : 'en'] || s.category;
+        const catName = getCategoryLabel(s.category);
         return `
           <div class="bg-white dark:bg-[#1a141f] rounded-2xl border border-rose-100 dark:border-slate-800 shadow-sm p-4 flex items-center justify-between gap-3">
             <div class="space-y-1">
@@ -3419,8 +3468,7 @@ function applySalonBranding() {
   });
   const bg = state.settings?.customBackground;
   const dashboard = document.querySelector('[data-tab-content="dashboard"]') ||
-    document.getElementById('tab-dashboard') ||
-    document.querySelector('#dashboardSection');
+    null;
   if (dashboard) {
     dashboard.style.backgroundImage = bg ? 'linear-gradient(rgba(255,255,255,.85),rgba(255,255,255,.85)),url("' + bg + '")' : '';
     dashboard.style.backgroundSize = bg ? 'cover' : '';
@@ -3433,7 +3481,7 @@ function setupSalonBrandingUploads() {
       const file = event.target.files?.[0];
       if (!file) return;
       if (!['image/png','image/jpeg','image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
-        alert('اختاري صورة PNG أو JPG أو WEBP أصغر من 8MB'); return;
+        showToast('اختاري صورة PNG أو JPG أو WEBP أصغر من 8MB', 'error'); return;
       }
       try {
         const bitmap = await createImageBitmap(file);
@@ -3451,7 +3499,7 @@ function setupSalonBrandingUploads() {
         saveState();
         applySalonBranding();
         showToast('تم حفظ الصورة، وجارٍ مزامنتها مع الأجهزة الأخرى');
-      } catch(err) { alert('تعذّر رفع الصورة: ' + err.message); }
+      } catch(err) { showToast('تعذّر رفع الصورة: ' + err.message, 'error'); }
     });
   };
   process('salonLogoUpload','customLogo');
@@ -3475,6 +3523,65 @@ function setupSalonBrandingUploads() {
       renderReportsAndExpenses();
       renderSettingsForm();
       applySalonBranding();
+    }
+
+
+    // ==================== SERVICE CATEGORIES MANAGEMENT ====================
+    function openModalCategoriesManager() {
+      resetCategoryForm();
+      renderCategoriesManager();
+      document.getElementById('modalManageCategories')?.classList.remove('hidden');
+    }
+
+    function resetCategoryForm() {
+      const editInput = document.getElementById('categoryEditId');
+      const arInput = document.getElementById('catNameArInput');
+      const enInput = document.getElementById('catNameEnInput');
+      const titleEl = document.getElementById('categoryFormTitle');
+      const submitBtn = document.getElementById('btnSaveCategorySubmit');
+      const cancelBtn = document.getElementById('btnCancelCatEdit');
+      const isAr = state.lang === 'ar';
+
+      if (editInput) editInput.value = '';
+      if (arInput) arInput.value = '';
+      if (enInput) enInput.value = '';
+      if (titleEl) titleEl.textContent = isAr ? 'إضافة قسم جديد' : 'Add New Category';
+      if (submitBtn) submitBtn.textContent = isAr ? '+ حفظ القسم' : '+ Save Category';
+      if (cancelBtn) cancelBtn.classList.add('hidden');
+    }
+
+    function renderCategoriesManager() {
+      const cats = getCategories();
+      const isAr = state.lang === 'ar';
+      const listEl = document.getElementById('categoriesManagerList');
+      const countEl = document.getElementById('categoriesCountBadge');
+      if (countEl) countEl.textContent = `${cats.length} ${isAr ? 'أقسام' : 'categories'}`;
+
+      if (!listEl) return;
+      listEl.innerHTML = cats.map(c => {
+        const count = (state.services || []).filter(s => s.category === c.id).length;
+        const namePrimary = isAr ? c.nameAr : (c.nameEn || c.nameAr);
+        const nameSecondary = isAr ? (c.nameEn || '') : c.nameAr;
+        return `
+          <div class="p-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 shadow-sm">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="font-extrabold text-sm text-slate-900 dark:text-white truncate">${namePrimary}</span>
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${count > 0 ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400' : 'bg-slate-100 dark:bg-slate-800 text-slate-400'}">${count} ${isAr ? 'خدمات' : 'services'}</span>
+              </div>
+              ${nameSecondary ? `<p class="text-[11px] text-slate-400 truncate">${nameSecondary}</p>` : ''}
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" data-edit-cat="${c.id}" class="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition">
+                ✏️ ${isAr ? 'تعديل' : 'Edit'}
+              </button>
+              <button type="button" data-delete-cat="${c.id}" class="px-2.5 py-1 rounded-lg text-xs font-bold text-red-500 hover:bg-red-50 dark:hover:bg-red-950/40 transition">
+                🗑️ ${isAr ? 'حذف' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('');
     }
 
     // ==================== MODAL HELPERS & ACTIONS ====================
@@ -3691,12 +3798,23 @@ function setupSalonBrandingUploads() {
       document.getElementById('modalClientStatement').classList.remove('hidden');
     }
 
+    function populateServiceCategorySelect(selectedId = '') {
+      const sel = document.getElementById('serviceCatInput');
+      if (!sel) return;
+      const cats = getCategories();
+      const isAr = state.lang === 'ar';
+      sel.innerHTML = cats.map(c => {
+        const label = isAr ? c.nameAr : (c.nameEn || c.nameAr);
+        return `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${label}</option>`;
+      }).join('');
+    }
+
     function openModalService(editId = '') {
       document.getElementById('serviceEditId').value = editId;
       const s = editId ? state.services.find(x => x.id === editId) : null;
       document.getElementById('serviceNameArInput').value = s ? s.nameAr : '';
       document.getElementById('serviceNameEnInput').value = s ? s.nameEn : '';
-      document.getElementById('serviceCatInput').value = s ? s.category : 'hair';
+      populateServiceCategorySelect(s ? s.category : (getCategories()[0]?.id || 'hair'));
       document.getElementById('servicePriceInput').value = s ? s.price : 20;
       document.getElementById('serviceDurationInput').value = s ? s.duration : 45;
       document.getElementById('modalService').classList.remove('hidden');
@@ -3984,68 +4102,7 @@ function setupSalonBrandingUploads() {
 
     // ==================== EVENT DELEGATION & LISTENERS ====================
     function setupEventListeners() {
-      // Auth Page Listeners
-      document.getElementById('tabAuthLogin').addEventListener('click', () => {
-        document.getElementById('authLoginForm').classList.remove('hidden');
-        document.getElementById('authRegisterForm').classList.add('hidden');
-        document.getElementById('tabAuthLogin').className = 'py-3 text-xs sm:text-sm font-extrabold border-b-2 border-rose-600 text-rose-600 dark:text-rose-400 transition';
-        document.getElementById('tabAuthRegister').className = 'py-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-rose-600 transition';
-      });
-
-      document.getElementById('tabAuthRegister').addEventListener('click', () => {
-        document.getElementById('authRegisterForm').classList.remove('hidden');
-        document.getElementById('authLoginForm').classList.add('hidden');
-        document.getElementById('tabAuthRegister').className = 'py-3 text-xs sm:text-sm font-extrabold border-b-2 border-rose-600 text-rose-600 dark:text-rose-400 transition';
-        document.getElementById('tabAuthLogin').className = 'py-3 text-xs sm:text-sm font-bold border-b-2 border-transparent text-slate-500 dark:text-slate-400 hover:text-rose-600 transition';
-        document.getElementById('regOwnerNameInput').value = state.auth?.ownerName || 'مدام ريما';
-        document.getElementById('regUsernameInput').value = state.auth?.username || 'admin';
-      });
-
-      document.getElementById('btnAuthLoginSubmit').addEventListener('click', async () => {
-        const u = (document.getElementById('loginUsernameInput').value || '').trim();
-        const p = (document.getElementById('loginPasswordInput').value || '').trim();
-
-        // If Cloud DB is configured, pull latest credentials first so phone recognizes new user immediately
-        if (getConfiguredCloudDbUrl()) {
-          await pullStateFromCloud(true);
-        }
-
-        const validU = state.auth?.username || 'admin';
-        const validP = state.auth?.password || '1234';
-
-        if (u.toLowerCase() === validU.toLowerCase() && p === validP) {
-          state.auth.isAuthenticated = true;
-          saveState();
-          renderAuthScreen();
-          showToast(state.lang === 'ar' ? `أهلاً بكِ ${state.auth?.ownerName || ''} في نظام إدارة الصالون ✨` : 'Welcome back!');
-        } else {
-          showToast(
-            state.lang === 'ar'
-              ? `اسم المستخدم أو الرمز غير مطابق لليوزر المسجل على هذا الجهاز (${validU}). إذا غيرتِ اليوزر من اللابتوب، اضغطي "☁️ فتح نفس اليوزر عالتلفون" بالأسفل!`
-              : `Invalid credentials for this device (expected user: ${validU}). Use Cloud/Phone Sync below if updated on another device!`,
-            'error'
-          );
-        }
-      });
-
-      document.getElementById('loginPasswordInput').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') document.getElementById('btnAuthLoginSubmit').click();
-      });
-
-      document.getElementById('btnAuthRegisterSubmit').addEventListener('click', () => {
-        const ownerName = (document.getElementById('regOwnerNameInput').value || '').trim() || 'مدام ريما';
-        const newU = (document.getElementById('regUsernameInput').value || '').trim();
-        const newP = (document.getElementById('regPasswordInput').value || '').trim();
-        if (!newU || !newP) {
-          showToast(state.lang === 'ar' ? 'يرجى إدخال اسم المستخدم وكلمة المرور الجديدة' : 'Enter username and password', 'error');
-          return;
-        }
-        state.auth = { isAuthenticated: true, username: newU, password: newP, ownerName };
-        saveState();
-        renderAuthScreen();
-        showToast(state.lang === 'ar' ? 'تم حفظ بيانات الدخول الجديدة وتسجيل الدخول بنجاح ✨' : 'Account updated & logged in!');
-      });
-
+      // Unified secure Supabase authentication listeners are handled in salon-auth.js
       document.getElementById('btnLogoutApp').addEventListener('click', () => {
         state.auth.isAuthenticated = false;
         saveState();
@@ -4426,6 +4483,55 @@ function setupSalonBrandingUploads() {
 
       // Services Filters & Save
       document.getElementById('filterServiceCat').addEventListener('change', renderServicesCatalog);
+      // Service Categories Management Listeners
+      document.getElementById('btnManageCategories')?.addEventListener('click', openModalCategoriesManager);
+      document.getElementById('btnCancelCatEdit')?.addEventListener('click', resetCategoryForm);
+      document.getElementById('btnSaveCategorySubmit')?.addEventListener('click', async () => {
+        const editId = (document.getElementById('categoryEditId')?.value || '').trim();
+        const nameAr = (document.getElementById('catNameArInput')?.value || '').trim();
+        const nameEn = (document.getElementById('catNameEnInput')?.value || '').trim();
+
+        if (!nameAr) {
+          showToast(state.lang === 'ar' ? 'يرجى إدخال اسم القسم' : 'Please enter category name', 'error');
+          return;
+        }
+
+        const cats = getCategories();
+        const now = Date.now();
+
+        if (editId) {
+          const idx = cats.findIndex(c => c.id === editId);
+          if (idx > -1) {
+            cats[idx] = {
+              ...cats[idx],
+              nameAr,
+              nameEn: nameEn || nameAr,
+              updatedAt: now
+            };
+          }
+        } else {
+          const newId = 'cat-' + now.toString().slice(-5);
+          cats.push({
+            id: newId,
+            nameAr,
+            nameEn: nameEn || nameAr,
+            updatedAt: now
+          });
+        }
+
+        state.categories = cats;
+        resetCategoryForm();
+        renderCategoriesManager();
+        renderServicesCatalog();
+        renderPosAndInvoices();
+        populateServiceCategorySelect();
+
+        await persistAndSync({
+          button: document.getElementById('btnSaveCategorySubmit'),
+          successMessage: state.lang === 'ar' ? 'تم حفظ وتحديث القسم بنجاح ✨' : 'Category saved & synced!'
+        });
+      });
+
       document.getElementById('btnOpenNewServiceModal').addEventListener('click', () => openModalService(''));
 
       document.getElementById('btnSaveServiceSubmit').addEventListener('click', () => {
@@ -4837,6 +4943,69 @@ function setupSalonBrandingUploads() {
           return;
         }
 
+        // Edit Category
+        const editCatId = target.getAttribute('data-edit-cat');
+        if (editCatId) {
+          const cats = getCategories();
+          const c = cats.find(x => x.id === editCatId);
+          if (c) {
+            document.getElementById('categoryEditId').value = c.id;
+            document.getElementById('catNameArInput').value = c.nameAr;
+            document.getElementById('catNameEnInput').value = c.nameEn || '';
+            document.getElementById('categoryFormTitle').textContent = (state.lang === 'ar' ? 'تعديل القسم: ' : 'Edit Category: ') + c.nameAr;
+            document.getElementById('btnSaveCategorySubmit').textContent = state.lang === 'ar' ? 'تحديث القسم ✓' : 'Update Category';
+            document.getElementById('btnCancelCatEdit')?.classList.remove('hidden');
+            document.getElementById('catNameArInput')?.focus();
+          }
+          return;
+        }
+
+        // Delete Category
+        const delCatId = target.getAttribute('data-delete-cat');
+        if (delCatId) {
+          const cats = getCategories();
+          const c = cats.find(x => x.id === delCatId);
+          if (!c) return;
+
+          const linkedSvcs = (state.services || []).filter(s => s.category === delCatId);
+          const confirmMsg = linkedSvcs.length > 0
+            ? (state.lang === 'ar'
+                ? `هذا القسم (${c.nameAr}) يحتوي على ${linkedSvcs.length} خدمة حالياً. هل تريدين حذفه ونقل خدماته إلى قسم آخر؟`
+                : `Category has ${linkedSvcs.length} services. Delete and move services?`)
+            : (state.lang === 'ar'
+                ? `هل أنتِ متأكدة من حذف قسم (${c.nameAr})؟`
+                : `Delete category ${c.nameAr}?`);
+
+          openConfirmModal(
+            state.lang === 'ar' ? 'حذف القسم' : 'Delete Category',
+            confirmMsg,
+            async () => {
+              const remaining = cats.filter(x => x.id !== delCatId);
+              const fallbackCatId = remaining[0]?.id || 'hair';
+              if (linkedSvcs.length > 0) {
+                state.services.forEach(s => {
+                  if (s.category === delCatId) s.category = fallbackCatId;
+                });
+              }
+
+              state.categories = remaining;
+              state._deleted = state._deleted || {};
+              state._deleted[delCatId] = Date.now();
+
+              resetCategoryForm();
+              renderCategoriesManager();
+              renderServicesCatalog();
+              renderPosAndInvoices();
+              populateServiceCategorySelect();
+
+              await persistAndSync({
+                successMessage: state.lang === 'ar' ? 'تم حذف القسم ومزامنة التغيير ✨' : 'Category deleted & synced!'
+              });
+            }
+          );
+          return;
+        }
+
         // Edit / Delete Service
         const editSrvId = target.getAttribute('data-edit-service');
         if (editSrvId) {
@@ -4972,7 +5141,7 @@ function setupSalonBrandingUploads() {
         document.getElementById('modalCloudSync').classList.remove('hidden');
       };
 
-      document.getElementById('btnAuthOpenCloudSync')?.addEventListener('click', openSyncModal);
+      // removed btnAuthOpenCloudSync
       document.getElementById('btnHeaderCloudSync')?.addEventListener('click', async () => {
         const btn = document.getElementById('btnHeaderCloudSync');
         const origHtml = btn ? btn.innerHTML : '';
@@ -4992,10 +5161,7 @@ function setupSalonBrandingUploads() {
         showToast(state.lang === 'ar' ? '📋 تم نسخ كود SQL! الصقيه في Supabase -> SQL Editor واضغطي Run.' : '📋 SQL copied! Paste in Supabase SQL Editor and click Run.');
       });
 
-      document.getElementById('btnAuthPullCloudQuick')?.addEventListener('click', async () => {
-        await pullStateFromCloud(false);
-        document.getElementById('loginUsernameInput').value = state.auth?.username || 'admin';
-      });
+// btnAuthPullCloudQuick removed
 
       document.getElementById('btnSaveCloudDbUrl')?.addEventListener('click', async () => {
         const urlVal = (document.getElementById('cloudDbUrlInput').value || '').trim().replace(/\/+$/, '');
@@ -5010,7 +5176,7 @@ function setupSalonBrandingUploads() {
         const pulled = await pullStateFromCloud(false);
         if (pulled) {
           await pushStateToCloud(true);
-          document.getElementById('loginUsernameInput').value = state.auth?.username || 'admin';
+          // loginUsernameInput removed
         }
       });
 
@@ -5020,7 +5186,7 @@ function setupSalonBrandingUploads() {
         if (urlVal) localStorage.setItem(CLOUD_URL_STORAGE_KEY, urlVal);
         if (keyVal) localStorage.setItem(CLOUD_KEY_STORAGE_KEY, keyVal);
         await pullStateFromCloud(false);
-        document.getElementById('loginUsernameInput').value = state.auth?.username || 'admin';
+        // loginUsernameInput removed
       });
 
       document.getElementById('btnDisconnectCloudDb')?.addEventListener('click', () => {
