@@ -2016,11 +2016,9 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     let categoryChartInstance = null;
 
     function getSupabaseCredentials() {
-      // This salon has one configured Supabase project. Ignore stale per-device
-      // connection settings from earlier versions that could point elsewhere.
-      const url = DEFAULT_SUPABASE_URL.trim().replace(/\\/+$/, '');
-      const key = DEFAULT_SUPABASE_ANON_KEY.trim();
-      return {url, key, isConfigured: Boolean(url && key)};
+      const url = String(DEFAULT_SUPABASE_URL || '').trim().replace(/\/+$/, '');
+      const key = String(DEFAULT_SUPABASE_ANON_KEY || '').trim();
+      return { url, key, isConfigured: Boolean(url && key) };
     }
 
     function getConfiguredCloudDbUrl() {
