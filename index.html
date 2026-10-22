@@ -2021,6 +2021,9 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       return { url, key, isConfigured: Boolean(url && key) };
     }
 
+    window.salonSupabaseCredentials = getSupabaseCredentials;
+    window.salonSupabaseClient = getSupabaseClientInstance;
+
     function getConfiguredCloudDbUrl() {
       const { url, isConfigured } = getSupabaseCredentials();
       return isConfigured ? url : '';
@@ -2045,6 +2048,51 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     }
 
     let cloudSyncTimeout = null;
+    let cloudBaseState = null;
+    const sameJson = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    function mergeSalonState(base, local, remote) {
+      if (!base) return null;
+      const output = {};
+      const keys = new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)]);
+      for (const key of keys) {
+        if (key === 'auth' || key === 'updatedAt') continue;
+        if (key === 'activeTab') { output[key] = local[key]; continue; }
+        const b = base[key], a = local[key], c = remote[key];
+        if (Array.isArray(a) && Array.isArray(c) && Array.isArray(b)
+            && [a,b,c].every(arr => arr.every(item => item && typeof item === 'object' && item.id != null))) {
+          const ids = new Set([...b,...c,...a].map(item => String(item.id)));
+          const bm = new Map(b.map(item => [String(item.id), item]));
+          const am = new Map(a.map(item => [String(item.id), item]));
+          const cm = new Map(c.map(item => [String(item.id), item]));
+          const merged = [];
+          for (const id of ids) {
+            const bv = bm.get(id), av = am.get(id), cv = cm.get(id);
+            let chosen;
+            if (sameJson(av, bv)) chosen = cv;
+            else if (sameJson(cv, bv) || sameJson(av, cv)) chosen = av;
+            else return null; // Same record edited on both devices: never guess.
+            if (chosen !== undefined) merged.push(chosen);
+          }
+          output[key] = merged;
+        } else if (sameJson(a,b)) output[key] = c;
+        else if (sameJson(c,b) || sameJson(a,c)) output[key] = a;
+        else return null;
+      }
+      output.auth = local.auth;
+      return output;
+    }
+        let cloudRevision = null;
+    let cloudDirty = false;
+    let cloudSaveInFlight = false;
+    let localChangeSequence = 0;
+    let cloudConflict = false;
+    let retryMergedWrite = false;
+    window.salonHasUnsavedChanges = () => cloudDirty || cloudSaveInFlight || cloudConflict;
+    window.salonIsEditingForm = () => {
+      const active = document.activeElement;
+      return Boolean(active && active.matches('input,textarea,select,[contenteditable="true"]')
+        && !active.closest('#salon-secure-auth'));
+    };
     function saveState(skipCloudPush = false) {
       try {
         state.updatedAt = Date.now();
@@ -2054,8 +2102,11 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       }
       const { isConfigured } = getSupabaseCredentials();
       if (!skipCloudPush && isConfigured) {
+        cloudDirty = true;
+        localChangeSequence++;
         clearTimeout(cloudSyncTimeout);
-        cloudSyncTimeout = setTimeout(() => {
+        if (!cloudConflict) cloudSyncTimeout = setTimeout(() => {
+          cloudSyncTimeout = null;
           pushStateToCloud(true);
         }, 1200);
       }
@@ -2093,128 +2144,101 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
 
     async function pushStateToCloud(silent = false) {
       const { url, key, isConfigured } = getSupabaseCredentials();
-      if (!isConfigured) return false;
-
+      if (!isConfigured || cloudRevision === null || cloudConflict) return false;
+      if (cloudSaveInFlight) return false;
+      const sb = getSupabaseClientInstance(url, key);
+      if (!sb) return false;
+      cloudSaveInFlight = true;
+      const sequence = localChangeSequence;
       const payload = JSON.parse(JSON.stringify(state));
-      if (payload.auth) { delete payload.auth.password; delete payload.auth.isAuthenticated; }
-
+      if (payload.auth) {
+        delete payload.auth.password;
+        delete payload.auth.isAuthenticated;
+      }
       try {
-        const sb = getSupabaseClientInstance(url, key);
-        if (sb) {
-          const { error } = await sb
-            .from(SUPABASE_TABLE_NAME)
-            .upsert(
-              {
-                id: SUPABASE_ROW_ID,
-                state_json: payload,
-                updated_at: new Date().toISOString()
-              },
-              { onConflict: 'id' }
-            );
-          if (error) throw error;
-        } else {
-          const endpoint = `${url}/rest/v1/${SUPABASE_TABLE_NAME}`;
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: buildSupabaseRestHeaders(key, {
-              'Content-Type': 'application/json',
-              'Prefer': 'resolution=merge-duplicates,return=minimal'
-            }),
-            body: JSON.stringify({
-              id: SUPABASE_ROW_ID,
-              state_json: payload,
-              updated_at: new Date().toISOString()
-            })
-          });
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(`HTTP ${res.status}: ${errText}`);
+        const { data, error } = await sb.rpc('save_salon_state_if_current', {
+          p_expected_revision: cloudRevision,
+          p_state: payload
+        });
+        if (error) throw error;
+        const result = Array.isArray(data) ? data[0] : data;
+        if (!result?.saved) {
+          const { data: latestRows, error: latestError } = await sb.from(SUPABASE_TABLE_NAME)
+            .select('state_json,revision').eq('id', SUPABASE_ROW_ID).limit(1);
+          if (latestError) throw latestError;
+          const latest = latestRows?.[0];
+          const merged = latest && mergeSalonState(cloudBaseState, state, latest.state_json);
+          if (!merged) {
+            cloudConflict = true;
+            cloudDirty = true;
+            showToast('تعارض تعديلين على نفس البيانات. أوقفنا الحفظ لحماية المعلومات. صدّري نسخة احتياطية قبل تحديث الصفحة.', 'warning');
+            return false;
           }
+          state = merged;
+          cloudRevision = Number(latest.revision);
+          cloudBaseState = JSON.parse(JSON.stringify(latest.state_json));
+          cloudDirty = true;
+          retryMergedWrite = true;
+          saveState(true);
+          showToast('تم دمج تعديلات الجهازين محلياً، وجارٍ تأكيد حفظها.', 'warning');
+          return false;
         }
-
-        if (!silent) {
-          showToast(state.lang === 'ar' ? '⚡ تم حفظ ومزامنة اليوزر والبيانات على Supabase بنجاح!' : '⚡ Synced to Supabase successfully!');
-        }
+        cloudRevision = Number(result.current_revision);
+        cloudBaseState = payload;
+        if (sequence === localChangeSequence) cloudDirty = false;
+        retryMergedWrite = false;
+        if (!silent) showToast('تم تأكيد حفظ البيانات في Supabase');
         updateCloudStatusBadges(true);
         return true;
       } catch (err) {
-        console.warn('Supabase push warning:', err);
-        if (!silent) {
-          showToast(
-            state.lang === 'ar'
-              ? 'لتفعيل المزامنة: افتحي Supabase -> SQL Editor وشغّلي كود إنشاء جدول salon_data ثم اضغطي حفظ!'
-              : 'Run the SQL snippet in Supabase SQL Editor to create table salon_data.',
-            'warning'
-          );
-        }
+        cloudDirty = true;
+        console.warn('Supabase save failed:', err);
+        showToast('فشل الحفظ السحابي. التعديلات موجودة محلياً فقط؛ تحققي من الاتصال ولا تغلقي الصفحة.', 'warning');
         return false;
+      } finally {
+        cloudSaveInFlight = false;
+        if (cloudDirty && !cloudConflict && (retryMergedWrite || sequence !== localChangeSequence)) {
+          retryMergedWrite = false;
+          clearTimeout(cloudSyncTimeout);
+          cloudSyncTimeout = setTimeout(() => {
+            cloudSyncTimeout = null;
+            pushStateToCloud(true);
+          }, 250);
+        }
       }
     }
 
     async function pullStateFromCloud(silent = false) {
       const { url, key, isConfigured } = getSupabaseCredentials();
-      if (!isConfigured) return false;
-
+      if (!isConfigured || cloudDirty || cloudSaveInFlight || cloudConflict || window.salonIsEditingForm()) return false;
       try {
-        let rows = null;
         const sb = getSupabaseClientInstance(url, key);
-        if (sb) {
-          const { data, error } = await sb
-            .from(SUPABASE_TABLE_NAME)
-            .select('state_json, updated_at')
-            .eq('id', SUPABASE_ROW_ID);
-          if (error) throw error;
-          rows = data;
-        } else {
-          const endpoint = `${url}/rest/v1/${SUPABASE_TABLE_NAME}?id=eq.${SUPABASE_ROW_ID}&select=state_json,updated_at`;
-          const res = await fetch(endpoint, {
-            method: 'GET',
-            headers: buildSupabaseRestHeaders(key, { 'Accept': 'application/json' }),
-            cache: 'no-store'
-          });
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(`HTTP ${res.status}: ${errText}`);
-          }
-          rows = await res.json();
-        }
-
-        if (Array.isArray(rows) && rows.length > 0 && rows[0].state_json) {
-          const remoteData = rows[0].state_json;
-          if (remoteData && Array.isArray(remoteData.clients) && Array.isArray(remoteData.invoices)) {
-            const keepAuthSession = state.auth?.isAuthenticated || false;
-            state = {
-              ...remoteData,
-              auth: {
-                ...(remoteData.auth || { username: 'admin', password: '1234', ownerName: 'مدام ريما' }),
-                isAuthenticated: keepAuthSession
-              }
-            };
-            saveState(true);
-            renderAll();
-            if (!silent) {
-              showToast(state.lang === 'ar' ? `⚡ تم سحب اليوزر (${state.auth.username}) والبيانات من Supabase!` : '⚡ Pulled latest user & data from Supabase!');
-            }
-            updateCloudStatusBadges(true);
-            return true;
-          }
-        } else if (Array.isArray(rows) && rows.length === 0) {
-          // Table exists and is empty -> seed it with current local state!
-          await pushStateToCloud(silent);
-          return true;
-        }
+        if (!sb) throw new Error('Supabase client unavailable');
+        const { data: rows, error } = await sb.from(SUPABASE_TABLE_NAME)
+          .select('state_json,updated_at,revision')
+          .eq('id', SUPABASE_ROW_ID).limit(1);
+        if (error) throw error;
+        if (!rows?.length) throw new Error('Salon data row missing; automatic seeding disabled');
+        const remoteData = rows[0].state_json;
+        if (!remoteData || !Array.isArray(remoteData.clients) || !Array.isArray(remoteData.invoices))
+          throw new Error('Invalid remote salon data');
+        const keepAuthSession = state.auth?.isAuthenticated || false;
+        state = {
+          ...remoteData,
+          auth: { ...(remoteData.auth || {}), isAuthenticated: keepAuthSession }
+        };
+        cloudRevision = Number(rows[0].revision);
+        cloudBaseState = JSON.parse(JSON.stringify(remoteData));
+        saveState(true);
+        renderAll();
+        if (!silent) showToast('تم تحميل أحدث البيانات من Supabase');
+        updateCloudStatusBadges(true);
+        return true;
       } catch (err) {
-        console.warn('Supabase pull warning:', err);
-        if (!silent) {
-          showToast(
-            state.lang === 'ar'
-              ? 'تأكدي من تشغيل كود الـ SQL (إنشاء جدول salon_data) داخل Supabase -> SQL Editor.'
-              : 'Ensure table salon_data is created in Supabase SQL Editor.',
-            'warning'
-          );
-        }
+        console.warn('Supabase pull failed:', err);
+        if (!silent) showToast('تعذر تحميل بيانات الصالون من Supabase: ' + err.message, 'warning');
+        return false;
       }
-      return false;
     }
 
     function encodeSyncToken() {
@@ -2495,7 +2519,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
 
     function switchTab(tabId) {
       state.activeTab = tabId;
-      saveState();
+      saveState(true);
 
       document.querySelectorAll('.tab-view').forEach(sec => {
         sec.classList.toggle('hidden', sec.id !== `view-${tabId}`);
@@ -4792,7 +4816,6 @@ function setupSalonBrandingUploads() {
         updateCloudStatusBadges(true);
         const pulled = await pullStateFromCloud(false);
         if (pulled) {
-          await pushStateToCloud(true);
           document.getElementById('loginUsernameInput').value = state.auth?.username || 'admin';
         }
       });
