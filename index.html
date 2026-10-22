@@ -2082,7 +2082,8 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       return output;
     }
         let cloudRevision = null;
-    let cloudDirty = false;
+    const PENDING_CLOUD_SAVE_KEY = STORAGE_KEY + '_pending_cloud_save';
+    let cloudDirty = localStorage.getItem(PENDING_CLOUD_SAVE_KEY) === '1';
     let cloudSaveInFlight = false;
     let localChangeSequence = 0;
     let cloudConflict = false;
@@ -2103,6 +2104,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       const { isConfigured } = getSupabaseCredentials();
       if (!skipCloudPush && isConfigured) {
         cloudDirty = true;
+        localStorage.setItem(PENDING_CLOUD_SAVE_KEY, '1');
         localChangeSequence++;
         clearTimeout(cloudSyncTimeout);
         if (!cloudConflict) cloudSyncTimeout = setTimeout(() => {
@@ -2178,6 +2180,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
           cloudRevision = Number(latest.revision);
           cloudBaseState = JSON.parse(JSON.stringify(latest.state_json));
           cloudDirty = true;
+          localStorage.setItem(PENDING_CLOUD_SAVE_KEY, '1');
           retryMergedWrite = true;
           saveState(true);
           showToast('تم دمج تعديلات الجهازين محلياً، وجارٍ تأكيد حفظها.', 'warning');
@@ -2185,13 +2188,17 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
         }
         cloudRevision = Number(result.current_revision);
         cloudBaseState = payload;
-        if (sequence === localChangeSequence) cloudDirty = false;
+        if (sequence === localChangeSequence) {
+          cloudDirty = false;
+          localStorage.removeItem(PENDING_CLOUD_SAVE_KEY);
+        }
         retryMergedWrite = false;
         if (!silent) showToast('تم تأكيد حفظ البيانات في Supabase');
         updateCloudStatusBadges(true);
         return true;
       } catch (err) {
         cloudDirty = true;
+        localStorage.setItem(PENDING_CLOUD_SAVE_KEY, '1');
         console.warn('Supabase save failed:', err);
         showToast('فشل الحفظ السحابي. التعديلات موجودة محلياً فقط؛ تحققي من الاتصال ولا تغلقي الصفحة.', 'warning');
         return false;
@@ -2210,7 +2217,10 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
 
     async function pullStateFromCloud(silent = false) {
       const { url, key, isConfigured } = getSupabaseCredentials();
-      if (!isConfigured || cloudDirty || cloudSaveInFlight || cloudConflict || window.salonIsEditingForm()) return false;
+      if (!isConfigured || cloudDirty || cloudSaveInFlight || cloudConflict || window.salonIsEditingForm()) {
+        if (cloudDirty && !silent) showToast('هناك تعديلات محلية لم تُحفظ سحابياً. تم منع استبدالها.', 'warning');
+        return false;
+      }
       try {
         const sb = getSupabaseClientInstance(url, key);
         if (!sb) throw new Error('Supabase client unavailable');
