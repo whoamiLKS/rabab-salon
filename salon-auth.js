@@ -103,7 +103,7 @@
     }
 
     await window.initializeAccountSync(user.id);
-    const ok = await window.pullStateFromCloud(true);
+    const ok = await window.pullStateFromCloud(true, true);
     if (!ok) {
       message('تعذّرت مزامنة الحساب. تحقّق من الاتصال وأعد تسجيل الدخول.');
       showGate();

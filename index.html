@@ -2307,9 +2307,9 @@ $$;</pre>
       accountSync.capture();
       return synchronizeAccount(silent);
     }
-    async function pullStateFromCloud(silent=false) {
+    async function pullStateFromCloud(silent=false, initialLogin=false) {
       // Automatic refresh never interrupts an open edit form.
-      if(silent && isUserActivelyEditing()) return false;
+      if(!initialLogin && silent && isUserActivelyEditing()) return false;
       return synchronizeAccount(silent);
     }
 
@@ -5108,6 +5108,6 @@ function setupSalonBrandingUploads() {
       // Cloud data is loaded once by salon-auth.js after session validation.
     });
   </script>
-  <script src="/salon-auth.js?v=3"></script>
+  <script src="/salon-auth.js?v=4"></script>
 </body>
 </html>
