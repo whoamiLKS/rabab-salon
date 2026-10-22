@@ -1,7 +1,7 @@
 {
-  "name": "صالون لوميير للسيدات | Lumière Beauty Salon",
-  "short_name": "Lumière Salon",
-  "description": "نظام إدارة المواعيد، الرعبون، الفواتير، ذمم الزبائن، والأرباح للصالون النسائي",
+  "name": "صالون رنا و جنى | Rana & Jana Beauty Salon",
+  "short_name": "صالون رنا و جنى",
+  "description": "نظام إدارة صالون رنا و جنى",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
