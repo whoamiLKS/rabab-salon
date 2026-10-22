@@ -7,7 +7,7 @@
   let lastCloudUpdate = '';
   async function refreshRemote() {
     if (refreshing || document.hidden) return;
-    if (cloudSyncTimeout || cloudWriteInProgress) { cloudRefreshPending = true; return; }
+    if (cloudSyncTimeout || cloudWriteInProgress || cloudHasUnsavedChanges) { cloudRefreshPending = true; return; }
     refreshing = true;
     try { await pullStateFromCloud(true); } finally { refreshing = false; }
   }
@@ -69,6 +69,8 @@
     document.body.appendChild(gate);
     document.addEventListener('visibilitychange', () => { if (!document.hidden && realtimeChannel) refreshRemote(); });
     window.addEventListener('focus', () => { if (realtimeChannel) refreshRemote(); });
+    // Mobile browsers may suspend websocket connections; periodic pull recovers missed events.
+    setInterval(() => { if (realtimeChannel && !document.hidden) refreshRemote(); }, 12000);
     $('salon-secure-login').addEventListener('submit', async e => {
       e.preventDefault();
       message('جارٍ التحقق من الحساب...');
