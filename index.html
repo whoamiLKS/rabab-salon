@@ -2053,6 +2053,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       const keys = new Set([...Object.keys(base), ...Object.keys(local), ...Object.keys(remote)]);
       for (const key of keys) {
         if (key === 'auth' || key === 'updatedAt') continue;
+        if (key === 'activeTab') { output[key] = local[key]; continue; }
         const b = base[key], a = local[key], c = remote[key];
         if (Array.isArray(a) && Array.isArray(c) && Array.isArray(b)
             && [a,b,c].every(arr => arr.every(item => item && typeof item === 'object' && item.id != null))) {
@@ -2082,6 +2083,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     let cloudSaveInFlight = false;
     let localChangeSequence = 0;
     let cloudConflict = false;
+    let retryMergedWrite = false;
     window.salonHasUnsavedChanges = () => cloudDirty || cloudSaveInFlight || cloudConflict;
     window.salonIsEditingForm = () => {
       const active = document.activeElement;
@@ -2173,6 +2175,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
           cloudRevision = Number(latest.revision);
           cloudBaseState = JSON.parse(JSON.stringify(latest.state_json));
           cloudDirty = true;
+          retryMergedWrite = true;
           saveState(true);
           showToast('تم دمج تعديلات الجهازين محلياً، وجارٍ تأكيد حفظها.', 'warning');
           return false;
@@ -2180,6 +2183,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
         cloudRevision = Number(result.current_revision);
         cloudBaseState = payload;
         if (sequence === localChangeSequence) cloudDirty = false;
+        retryMergedWrite = false;
         if (!silent) showToast('تم تأكيد حفظ البيانات في Supabase');
         updateCloudStatusBadges(true);
         return true;
@@ -2190,7 +2194,8 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
         return false;
       } finally {
         cloudSaveInFlight = false;
-        if (cloudDirty && !cloudConflict) {
+        if (cloudDirty && !cloudConflict && (retryMergedWrite || sequence !== localChangeSequence)) {
+          retryMergedWrite = false;
           clearTimeout(cloudSyncTimeout);
           cloudSyncTimeout = setTimeout(() => {
             cloudSyncTimeout = null;
