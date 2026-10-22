@@ -2114,72 +2114,56 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       return headers;
     }
 
+    // Last confirmed cloud snapshot is the baseline for field-level, atomic merges.
+    let cloudBaseSnapshot = null;
     async function pushStateToCloud(silent = false) {
       const { url, key, isConfigured } = getSupabaseCredentials();
       if (!isConfigured) return false;
-
       if (cloudWriteInProgress) { cloudRefreshPending = true; return false; }
       cloudWriteInProgress = true;
       const savingSequence = cloudEditSequence;
       const payload = JSON.parse(JSON.stringify(state));
       if (payload.auth) { delete payload.auth.password; delete payload.auth.isAuthenticated; }
-
       try {
         const sb = getSupabaseClientInstance(url, key);
-        if (sb) {
-          // Compare with server's exact timestamp to avoid false conflicts caused by
-          // PostgREST timestamp precision and browser time-zone formatting.
-          const { data: current, error: readError } = await sb.from(SUPABASE_TABLE_NAME)
-            .select('state_json, updated_at').eq('id', SUPABASE_ROW_ID).single();
-          if (readError) throw readError;
-          if (cloudLastConfirmedUpdate && current.updated_at !== cloudLastConfirmedUpdate) {
-            throw new Error('Cloud version changed; local changes kept.');
-          }
-          const {data, error} = await sb.from(SUPABASE_TABLE_NAME)
-            .update({state_json: payload, updated_at: new Date().toISOString()})
-            .eq('id', SUPABASE_ROW_ID)
-            .eq('updated_at', current.updated_at)
-            .select('updated_at');
-          if (error) throw error;
-          if (!data?.length) throw new Error('Cloud version changed during save; local changes kept.');
-          cloudLastConfirmedUpdate = data[0].updated_at;
+        if (!sb) throw new Error('Supabase client unavailable');
+        if (!cloudBaseSnapshot) {
+          // Fail closed, rather than upload an unknown offline snapshot over live data.
+          throw new Error('No cloud baseline. Reload while online to synchronize first.');
+        }
+        const {data, error} = await sb.rpc('merge_salon_state', {
+          p_base: cloudBaseSnapshot,
+          p_desired: payload
+        });
+        if (error) throw error;
+        const saved = data?.[0];
+        if (!saved?.state_json) throw new Error('Cloud merge returned no data');
+        cloudBaseSnapshot = structuredClone(saved.state_json);
+        cloudLastConfirmedUpdate = saved.updated_at;
+        if (savingSequence === cloudEditSequence) {
+          cloudHasUnsavedChanges = false;
+          const isAuth = state.auth?.isAuthenticated || false;
+          const currentTab = state.activeTab;
+          const currentTheme = state.theme;
+          const currentLang = state.lang;
+          state = {...saved.state_json, activeTab: currentTab, theme: currentTheme, lang: currentLang,
+            auth:{...(saved.state_json.auth || {}), isAuthenticated: isAuth}};
+          saveState(true);
+          renderAll();
         } else {
-          const endpoint = `${url}/rest/v1/${SUPABASE_TABLE_NAME}`;
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: buildSupabaseRestHeaders(key, {
-              'Content-Type': 'application/json',
-              'Prefer': 'resolution=merge-duplicates,return=minimal'
-            }),
-            body: JSON.stringify({
-              id: SUPABASE_ROW_ID,
-              state_json: payload,
-              updated_at: new Date().toISOString()
-            })
-          });
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(`HTTP ${res.status}: ${errText}`);
-          }
+          // Another edit occurred during the request. Schedule another merge; never discard it.
+          clearTimeout(cloudSyncTimeout);
+          cloudSyncTimeout = setTimeout(async () => {
+            cloudSyncTimeout = null;
+            await pushStateToCloud(true);
+          }, 400);
         }
-
-        if (!silent) {
-          showToast(state.lang === 'ar' ? '⚡ تم حفظ ومزامنة اليوزر والبيانات على Supabase بنجاح!' : '⚡ Synced to Supabase successfully!');
-        }
-        if (savingSequence === cloudEditSequence) cloudHasUnsavedChanges = false;
+        if (!silent) showToast(state.lang === 'ar' ? 'تمت مزامنة الإضافات والتعديلات بنجاح' : 'Changes synchronized');
         updateCloudStatusBadges(true);
         return true;
-      } catch (err) {
-        console.error('Supabase write failed; local changes preserved:', err);
-        showToast('⚠️ لم تُحفظ التعديلات على السحابة. بقيت على هذا الجهاز. لا تعيدي تحميل الصفحة قبل حل المزامنة.', 'error');
-        if (!silent) {
-          showToast(
-            state.lang === 'ar'
-              ? 'لتفعيل المزامنة: افتحي Supabase -> SQL Editor وشغّلي كود إنشاء جدول salon_data ثم اضغطي حفظ!'
-              : 'Run the SQL snippet in Supabase SQL Editor to create table salon_data.',
-            'warning'
-          );
-        }
+      } catch(err) {
+        console.error('Cloud merge failed; local additions kept:', err);
+        showToast('⚠️ تعذرت المزامنة، الإضافات محفوظة على هذا الجهاز فقط. لا تعيد تحميل الصفحة.', 'error');
         return false;
       } finally {
         cloudWriteInProgress = false;
@@ -2233,6 +2217,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
               return false;
             }
             cloudLastConfirmedUpdate = rows[0].updated_at;
+            cloudBaseSnapshot = structuredClone(remoteData);
             const keepAuthSession = state.auth?.isAuthenticated || false;
             state = {
               ...remoteData,
