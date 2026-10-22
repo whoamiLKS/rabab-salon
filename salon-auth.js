@@ -6,7 +6,7 @@
   let refreshing = false;
   let lastCloudUpdate = '';
   async function refreshRemote() {
-    if (refreshing || document.hidden || cloudSyncTimeout || window.salonHasUnsavedChanges?.() || window.salonIsEditingForm?.()) return;
+    if (refreshing || document.hidden || window.salonHasUnsavedChanges?.() || window.salonIsEditingForm?.()) return;
     refreshing = true;
     try { await pullStateFromCloud(true); } catch (error) { console.warn('Realtime refresh failed:', error); } finally { refreshing = false; }
   }
@@ -23,9 +23,9 @@
   }
   const $ = id => document.getElementById(id);
   const ensureClient = () => {
-    const c = getSupabaseCredentials();
-    if (!c.isConfigured || !window.supabase) throw new Error('Supabase is not configured.');
-    client = getSupabaseClientInstance(c.url, c.key);
+    const c = window.salonSupabaseCredentials?.();
+    if (!c?.isConfigured || !window.supabase) throw new Error('Supabase is not configured.');
+    client = window.salonSupabaseClient?.(c.url, c.key);
     return client;
   };
   const message = text => { const el = $('salon-auth-message'); if (el) el.textContent = text; };
