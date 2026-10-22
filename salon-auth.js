@@ -6,7 +6,8 @@
   let refreshing = false;
   let lastCloudUpdate = '';
   async function refreshRemote() {
-    if (refreshing || document.hidden || cloudSyncTimeout) return;
+    if (refreshing || document.hidden) return;
+    if (cloudSyncTimeout || cloudWriteInProgress) { cloudRefreshPending = true; return; }
     refreshing = true;
     try { await pullStateFromCloud(true); } finally { refreshing = false; }
   }
