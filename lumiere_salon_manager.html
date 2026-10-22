@@ -2179,6 +2179,12 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     }
 
     async function pullStateFromCloud(silent = false) {
+      // A remote refresh must never discard in-progress edits to settings.
+      const active = document.activeElement;
+      if (active && active.closest?.('#tabSettings, #settingsSection, [data-tab-content="settings"]') && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) {
+        cloudRefreshPending = true;
+        return false;
+      }
       if (cloudSyncTimeout || cloudWriteInProgress || cloudHasUnsavedChanges) {
         cloudRefreshPending = true;
         return false;
@@ -3288,11 +3294,12 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     }
 
     function renderSettingsForm() {
-      document.getElementById('setSalonNameAr').value = state.settings?.nameAr || '';
-      document.getElementById('setSalonNameEn').value = state.settings?.nameEn || '';
-      document.getElementById('setSalonPhone').value = state.settings?.phone || '';
-      document.getElementById('setLbpRate').value = state.settings?.lbpRate || 89500;
-      document.getElementById('setSalonAddress').value = state.settings?.address || '';
+      // Never replace a user's active input during cloud refresh.
+      const fields = [['setSalonNameAr', state.settings?.nameAr || ''], ['setSalonNameEn', state.settings?.nameEn || ''], ['setSalonPhone', state.settings?.phone || ''], ['setLbpRate', state.settings?.lbpRate || 89500], ['setSalonAddress', state.settings?.address || '']];
+      for (const [id, value] of fields) {
+        const el = document.getElementById(id);
+        if (el && el !== document.activeElement && !el.dataset.userEditing) el.value = value;
+      }
     }
 
 
@@ -4329,6 +4336,7 @@ function setupSalonBrandingUploads() {
       // Settings & Backup
       document.getElementById('btnSaveSalonSettings').addEventListener('click', () => {
         state.settings = {
+          ...(state.settings || {}),
           nameAr: document.getElementById('setSalonNameAr').value.trim() || 'صالون رنا و جنى',
           nameEn: document.getElementById('setSalonNameEn').value.trim() || 'Lumière Beauty Lounge',
           phone: document.getElementById('setSalonPhone').value.trim(),
