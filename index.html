@@ -2057,6 +2057,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     let cloudEditSequence = 0;
     let cloudLastConfirmedUpdate = '';
     let cloudPushQueue = Promise.resolve();
+    let salonSettingsDraftDirty = false;
     function saveState(skipCloudPush = false) {
       try {
         state.updatedAt = Date.now();
@@ -2179,7 +2180,8 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     }
 
     async function pullStateFromCloud(silent = false) {
-      // A remote refresh must never discard in-progress edits to settings.
+      // Never overwrite a settings draft until the user saves it.
+      if (salonSettingsDraftDirty) { cloudRefreshPending = true; return false; }
       const active = document.activeElement;
       if (active && active.closest?.('#tabSettings, #settingsSection, [data-tab-content="settings"]') && /^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName)) {
         cloudRefreshPending = true;
@@ -4334,6 +4336,9 @@ function setupSalonBrandingUploads() {
       });
 
       // Settings & Backup
+      ['setSalonNameAr','setSalonNameEn','setSalonPhone','setLbpRate','setSalonAddress'].forEach(id => {
+        document.getElementById(id)?.addEventListener('input', () => { salonSettingsDraftDirty = true; });
+      });
       document.getElementById('btnSaveSalonSettings').addEventListener('click', () => {
         state.settings = {
           ...(state.settings || {}),
@@ -4343,9 +4348,10 @@ function setupSalonBrandingUploads() {
           lbpRate: Number(document.getElementById('setLbpRate').value) || 89500,
           address: document.getElementById('setSalonAddress').value.trim()
         };
+        salonSettingsDraftDirty = false;
         saveState();
         renderAll();
-        showToast(state.lang === 'ar' ? 'تم حفظ إعدادات الصالون بنجاح ✨' : 'Salon settings saved!');
+        showToast(state.lang === 'ar' ? 'تم حفظ إعدادات الصالون محلياً، جارٍ المزامنة ✨' : 'Salon settings saved!');
       });
 
       document.getElementById('btnExportJsonBackup').addEventListener('click', () => {
