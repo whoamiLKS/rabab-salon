@@ -14,5 +14,9 @@ create policy "Authenticated salon access"
 on public.salon_data for all to authenticated
 using (id = 'main_salon' and (select auth.uid()) is not null)
 with check (id = 'main_salon' and (select auth.uid()) is not null);
+
+-- Optional: Enable Realtime replication on table salon_data for instant cross-device updates:
+-- alter publication supabase_realtime add table public.salon_data;
+
 -- Create the trusted owner account in Supabase Dashboard → Authentication → Users.
 -- Do not enable public sign-up for this private app.

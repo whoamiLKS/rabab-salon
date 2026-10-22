@@ -2016,8 +2016,10 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     let categoryChartInstance = null;
 
     function getSupabaseCredentials() {
-      const url = String(DEFAULT_SUPABASE_URL || '').trim().replace(/\/+$/, '');
-      const key = String(DEFAULT_SUPABASE_ANON_KEY || '').trim();
+      const customUrl = localStorage.getItem(CLOUD_URL_STORAGE_KEY);
+      const customKey = localStorage.getItem(CLOUD_KEY_STORAGE_KEY);
+      const url = String(customUrl || DEFAULT_SUPABASE_URL || '').trim().replace(/\/+$/, '');
+      const key = String(customKey || DEFAULT_SUPABASE_ANON_KEY || '').trim();
       return { url, key, isConfigured: Boolean(url && key) };
     }
 
@@ -2026,15 +2028,123 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       return isConfigured ? url : '';
     }
 
+    function sanitizeState(raw) {
+      let s = raw;
+      if (typeof s === 'string') {
+        try { s = JSON.parse(s); } catch (e) { s = null; }
+      }
+      if (!s || typeof s !== 'object') return null;
+      if (s.state_json && typeof s.state_json === 'object') {
+        s = s.state_json;
+      }
+      const defaultState = getDefaultSampleState();
+      return {
+        lang: s.lang || defaultState.lang || 'ar',
+        theme: s.theme || defaultState.theme || 'light',
+        activeTab: s.activeTab || defaultState.activeTab || 'dashboard',
+        updatedAt: Number(s.updatedAt) || Date.now(),
+        auth: {
+          ...(defaultState.auth || {}),
+          ...(s.auth || {})
+        },
+        settings: {
+          ...(defaultState.settings || {}),
+          ...(s.settings || {})
+        },
+        services: Array.isArray(s.services) ? s.services : defaultState.services,
+        clients: Array.isArray(s.clients) ? s.clients : defaultState.clients,
+        appointments: Array.isArray(s.appointments) ? s.appointments : defaultState.appointments,
+        invoices: Array.isArray(s.invoices) ? s.invoices : defaultState.invoices,
+        debtPayments: Array.isArray(s.debtPayments) ? s.debtPayments : defaultState.debtPayments,
+        expenses: Array.isArray(s.expenses) ? s.expenses : defaultState.expenses,
+        _deleted: (s._deleted && typeof s._deleted === 'object') ? s._deleted : {}
+      };
+    }
+
+    function mergeEntityArrays(localArr, remoteArr, deletedMap = {}) {
+      const merged = new Map();
+      const all = [...(remoteArr || []), ...(localArr || [])];
+
+      for (const item of all) {
+        if (!item || !item.id) continue;
+        const id = String(item.id);
+        const delTime = Number(deletedMap[id]) || 0;
+        const itemTime = Number(item.updatedAt) || 0;
+
+        // If tombstoned and not modified after deletion, exclude
+        if (delTime && itemTime <= delTime) continue;
+
+        if (!merged.has(id)) {
+          merged.set(id, { ...item });
+        } else {
+          const existing = merged.get(id);
+          const existingTime = Number(existing.updatedAt) || 0;
+          if (itemTime > existingTime) {
+            merged.set(id, { ...existing, ...item });
+          } else {
+            merged.set(id, { ...item, ...existing });
+          }
+        }
+      }
+      return Array.from(merged.values());
+    }
+
+    function mergeStates(local, remote) {
+      if (!remote) return local;
+      if (!local) return remote;
+
+      const mergedDeleted = {
+        ...(remote._deleted || {}),
+        ...(local._deleted || {})
+      };
+
+      const cutoff = Date.now() - 90 * 24 * 60 * 60 * 1000;
+      for (const k in mergedDeleted) {
+        if (Number(mergedDeleted[k]) < cutoff) delete mergedDeleted[k];
+      }
+
+      return {
+        ...local,
+        lang: local.lang || remote.lang || 'ar',
+        theme: local.theme || remote.theme || 'light',
+        activeTab: local.activeTab || 'dashboard',
+        updatedAt: Math.max(Number(local.updatedAt) || 0, Number(remote.updatedAt) || 0, Date.now()),
+        settings: {
+          ...(remote.settings || {}),
+          ...(local.settings || {})
+        },
+        auth: {
+          ...(remote.auth || {}),
+          ...(local.auth || {}),
+          isAuthenticated: Boolean(local.auth?.isAuthenticated)
+        },
+        clients: mergeEntityArrays(local.clients, remote.clients, mergedDeleted),
+        invoices: mergeEntityArrays(local.invoices, remote.invoices, mergedDeleted),
+        appointments: mergeEntityArrays(local.appointments, remote.appointments, mergedDeleted),
+        services: mergeEntityArrays(local.services, remote.services, mergedDeleted),
+        debtPayments: mergeEntityArrays(local.debtPayments, remote.debtPayments, mergedDeleted),
+        expenses: mergeEntityArrays(local.expenses, remote.expenses, mergedDeleted),
+        _deleted: mergedDeleted
+      };
+    }
+
+    function isUserActivelyEditing() {
+      const active = document.activeElement;
+      if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.tagName === 'SELECT')) {
+        return true;
+      }
+      const openModals = document.querySelectorAll(
+        '#modalAppointment:not(.hidden), #modalClient:not(.hidden), #modalPayment:not(.hidden), #modalService:not(.hidden), #modalCloudSync:not(.hidden)'
+      );
+      return openModals.length > 0;
+    }
+
     function loadState() {
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
         if (raw) {
-          const parsed = JSON.parse(raw);
+          const parsed = sanitizeState(raw);
           if (parsed && Array.isArray(parsed.clients) && Array.isArray(parsed.invoices)) {
-            if (!parsed.auth) {
-              parsed.auth = { isAuthenticated: false, username: 'admin', password: '1234', ownerName: 'مدام ريما' };
-            }
             return parsed;
           }
         }
@@ -2057,7 +2167,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
         clearTimeout(cloudSyncTimeout);
         cloudSyncTimeout = setTimeout(() => {
           pushStateToCloud(true);
-        }, 1200);
+        }, 800);
       }
       updateCloudStatusBadges();
     }
@@ -2084,56 +2194,78 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
         'apikey': key,
         ...extra
       };
-      // Only send Authorization: Bearer if key is a JWT (eyJ...), as sb_publishable_ keys use apikey header directly
       if (key.startsWith('eyJ')) {
         headers['Authorization'] = `Bearer ${key}`;
       }
       return headers;
     }
 
+    let isPushing = false;
+    let pendingPush = false;
+
     async function pushStateToCloud(silent = false) {
       const { url, key, isConfigured } = getSupabaseCredentials();
       if (!isConfigured) return false;
 
-      const payload = JSON.parse(JSON.stringify(state));
-      if (payload.auth) { delete payload.auth.password; delete payload.auth.isAuthenticated; }
+      if (isPushing) {
+        pendingPush = true;
+        return true;
+      }
 
+      isPushing = true;
       try {
         const sb = getSupabaseClientInstance(url, key);
-        if (sb) {
-          const { error } = await sb
+        if (!sb) return false;
+
+        // 1. Fetch remote state to merge any additions from other devices first
+        let remoteState = null;
+        try {
+          const { data: rows, error: fetchErr } = await sb
             .from(SUPABASE_TABLE_NAME)
-            .upsert(
-              {
-                id: SUPABASE_ROW_ID,
-                state_json: payload,
-                updated_at: new Date().toISOString()
-              },
-              { onConflict: 'id' }
-            );
-          if (error) throw error;
-        } else {
-          const endpoint = `${url}/rest/v1/${SUPABASE_TABLE_NAME}`;
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: buildSupabaseRestHeaders(key, {
-              'Content-Type': 'application/json',
-              'Prefer': 'resolution=merge-duplicates,return=minimal'
-            }),
-            body: JSON.stringify({
-              id: SUPABASE_ROW_ID,
-              state_json: payload,
-              updated_at: new Date().toISOString()
-            })
-          });
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(`HTTP ${res.status}: ${errText}`);
+            .select('state_json, updated_at')
+            .eq('id', SUPABASE_ROW_ID)
+            .limit(1);
+
+          if (!fetchErr && Array.isArray(rows) && rows.length > 0 && rows[0]?.state_json) {
+            remoteState = sanitizeState(rows[0].state_json);
           }
+        } catch (fetchEx) {
+          console.warn('Pre-push remote fetch warning:', fetchEx);
         }
 
+        // 2. Intelligently merge remote state with local state
+        if (remoteState) {
+          const keepAuth = state.auth?.isAuthenticated || false;
+          state = mergeStates(state, remoteState);
+          if (state.auth) state.auth.isAuthenticated = keepAuth;
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          } catch (_) {}
+        }
+
+        // 3. Prepare payload for cloud
+        const payload = JSON.parse(JSON.stringify(state));
+        if (payload.auth) {
+          delete payload.auth.password;
+          delete payload.auth.isAuthenticated;
+        }
+
+        const isoNow = new Date().toISOString();
+        const { error: upsertErr } = await sb
+          .from(SUPABASE_TABLE_NAME)
+          .upsert(
+            {
+              id: SUPABASE_ROW_ID,
+              state_json: payload,
+              updated_at: isoNow
+            },
+            { onConflict: 'id' }
+          );
+
+        if (upsertErr) throw upsertErr;
+
         if (!silent) {
-          showToast(state.lang === 'ar' ? '⚡ تم حفظ ومزامنة اليوزر والبيانات على Supabase بنجاح!' : '⚡ Synced to Supabase successfully!');
+          showToast(state.lang === 'ar' ? '⚡ تم حفظ ومزامنة البيانات على Supabase بنجاح!' : '⚡ Synced to Supabase successfully!');
         }
         updateCloudStatusBadges(true);
         return true;
@@ -2142,19 +2274,28 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
         if (!silent) {
           showToast(
             state.lang === 'ar'
-              ? 'لتفعيل المزامنة: افتحي Supabase -> SQL Editor وشغّلي كود إنشاء جدول salon_data ثم اضغطي حفظ!'
-              : 'Run the SQL snippet in Supabase SQL Editor to create table salon_data.',
+              ? 'تعذّر المزامنة مع Supabase: ' + (err.message || 'خطأ في الاتصال')
+              : 'Sync failed: ' + (err.message || ''),
             'warning'
           );
         }
         return false;
+      } finally {
+        isPushing = false;
+        if (pendingPush) {
+          pendingPush = false;
+          setTimeout(() => pushStateToCloud(true), 300);
+        }
       }
     }
 
+    let isPulling = false;
     async function pullStateFromCloud(silent = false) {
       const { url, key, isConfigured } = getSupabaseCredentials();
       if (!isConfigured) return false;
 
+      if (isPulling) return true;
+      isPulling = true;
       try {
         let rows = null;
         const sb = getSupabaseClientInstance(url, key);
@@ -2162,7 +2303,8 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
           const { data, error } = await sb
             .from(SUPABASE_TABLE_NAME)
             .select('state_json, updated_at')
-            .eq('id', SUPABASE_ROW_ID);
+            .eq('id', SUPABASE_ROW_ID)
+            .limit(1);
           if (error) throw error;
           rows = data;
         } else {
@@ -2179,27 +2321,32 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
           rows = await res.json();
         }
 
-        if (Array.isArray(rows) && rows.length > 0 && rows[0].state_json) {
-          const remoteData = rows[0].state_json;
-          if (remoteData && Array.isArray(remoteData.clients) && Array.isArray(remoteData.invoices)) {
+        if (Array.isArray(rows) && rows.length > 0 && rows[0]?.state_json) {
+          const remoteData = sanitizeState(rows[0].state_json);
+          if (remoteData) {
             const keepAuthSession = state.auth?.isAuthenticated || false;
-            state = {
-              ...remoteData,
-              auth: {
-                ...(remoteData.auth || { username: 'admin', password: '1234', ownerName: 'مدام ريما' }),
-                isAuthenticated: keepAuthSession
-              }
-            };
-            saveState(true);
-            renderAll();
+            state = mergeStates(state, remoteData);
+            if (state.auth) state.auth.isAuthenticated = keepAuthSession;
+
+            try {
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+            } catch (_) {}
+
+            // Update UI safely without wiping what user is actively typing
+            if (!isUserActivelyEditing()) {
+              renderAll();
+            } else {
+              updateCloudStatusBadges(true);
+            }
+
             if (!silent) {
-              showToast(state.lang === 'ar' ? `⚡ تم سحب اليوزر (${state.auth.username}) والبيانات من Supabase!` : '⚡ Pulled latest user & data from Supabase!');
+              showToast(state.lang === 'ar' ? '⚡ تم سحب أحدث البيانات من Supabase!' : '⚡ Pulled latest data from Supabase!');
             }
             updateCloudStatusBadges(true);
             return true;
           }
         } else if (Array.isArray(rows) && rows.length === 0) {
-          // Table exists and is empty -> seed it with current local state!
+          // Table exists and row is empty -> seed it with current local state!
           await pushStateToCloud(silent);
           return true;
         }
@@ -2213,8 +2360,60 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
             'warning'
           );
         }
+      } finally {
+        isPulling = false;
       }
       return false;
+    }
+
+    async function persistAndSync({
+      button = null,
+      loadingText = '',
+      successMessage = '',
+      modalId = null,
+      onSuccess = null
+    } = {}) {
+      let originalBtnText = '';
+      if (button) {
+        originalBtnText = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = loadingText || (state.lang === 'ar' ? 'جارٍ الحفظ في Supabase... ⏳' : 'Saving to Supabase... ⏳');
+      }
+
+      state.updatedAt = Date.now();
+      saveState(true);
+
+      let success = false;
+      try {
+        success = await pushStateToCloud(true);
+      } catch (e) {
+        console.warn('Persist and sync error:', e);
+        success = false;
+      }
+
+      if (button) {
+        button.disabled = false;
+        button.innerHTML = originalBtnText;
+      }
+
+      if (modalId) {
+        document.getElementById(modalId)?.classList.add('hidden');
+      }
+
+      renderAll();
+
+      if (typeof onSuccess === 'function') {
+        onSuccess();
+      }
+
+      if (success) {
+        showToast(successMessage || (state.lang === 'ar' ? 'تم الحفظ والمزامنة في قاعدة البيانات بنجاح ✨' : 'Saved and synced to database successfully ✨'), 'success');
+      } else {
+        showToast(state.lang === 'ar'
+          ? 'تم الحفظ على هذا الجهاز، وتعذّر الاتصال بقاعدة البيانات حالياً (سيتم الرفع تلقائياً فور توفر الإنترنت)'
+          : 'Saved locally, will sync to cloud when connected.', 'warning');
+      }
+      return success;
     }
 
     function encodeSyncToken() {
@@ -3999,14 +4198,15 @@ function setupSalonBrandingUploads() {
           return;
         }
 
+        const now = Date.now();
         if (editId) {
           const idx = state.appointments.findIndex(a => a.id === editId);
           if (idx > -1) {
-            state.appointments[idx] = { ...state.appointments[idx], clientId, date, time, staff, status, depositPaid, depositMethod, notes, serviceIds };
+            state.appointments[idx] = { ...state.appointments[idx], clientId, date, time, staff, status, depositPaid, depositMethod, notes, serviceIds, updatedAt: now };
           }
         } else {
           state.appointments.push({
-            id: 'apt-' + Date.now().toString().slice(-5),
+            id: 'apt-' + now.toString().slice(-5),
             clientId,
             date,
             time,
@@ -4015,15 +4215,18 @@ function setupSalonBrandingUploads() {
             depositPaid,
             depositMethod,
             notes,
-            serviceIds
+            serviceIds,
+            updatedAt: now
           });
         }
-        saveState();
-        document.getElementById('modalAppointment').classList.add('hidden');
-        renderAll();
-        showToast(state.lang === 'ar'
-          ? (depositPaid > 0 ? `تم حفظ الموعد وتسجيل رعبون ${formatMoney(depositPaid)} بنجاح ✨` : 'تم حفظ الموعد بنجاح ✨')
-          : 'Appointment saved!');
+
+        persistAndSync({
+          button: document.getElementById('btnSaveApptSubmit'),
+          modalId: 'modalAppointment',
+          successMessage: state.lang === 'ar'
+            ? (depositPaid > 0 ? `تم حفظ الموعد ورعبون ${formatMoney(depositPaid)} ومزامنتهما في Supabase بنجاح ✨` : 'تم حفظ الموعد ومزامنته في Supabase بنجاح ✨')
+            : 'Appointment saved and synced!'
+        });
       });
 
       // Quick Add Client from Appointment or POS
@@ -4045,23 +4248,29 @@ function setupSalonBrandingUploads() {
         }
 
         let newClientId = editId;
+        const now = Date.now();
         if (editId) {
           const idx = state.clients.findIndex(c => c.id === editId);
           if (idx > -1) {
-            state.clients[idx] = { ...state.clients[idx], name, phone, initialDebt, notes };
+            state.clients[idx] = { ...state.clients[idx], name, phone, initialDebt, notes, updatedAt: now };
           }
         } else {
-          newClientId = 'cli-' + Date.now().toString().slice(-5);
-          state.clients.push({ id: newClientId, name, phone, initialDebt, notes });
+          newClientId = 'cli-' + now.toString().slice(-5);
+          state.clients.push({ id: newClientId, name, phone, initialDebt, notes, updatedAt: now });
         }
 
-        saveState();
-        document.getElementById('modalClient').classList.add('hidden');
-        renderAll();
-        document.getElementById('posClientSelect').value = newClientId;
-        document.getElementById('apptClientSelect').value = newClientId;
-        updatePosClientDebtBanner();
-        showToast(state.lang === 'ar' ? 'تم حفظ بيانات الزبونة ✨' : 'Client saved!');
+        persistAndSync({
+          button: document.getElementById('btnSaveClientSubmit'),
+          modalId: 'modalClient',
+          successMessage: state.lang === 'ar' ? 'تم حفظ بيانات الزبونة ومزامنتها في Supabase بنجاح ✨' : 'Client saved and synced!',
+          onSuccess: () => {
+            const posSel = document.getElementById('posClientSelect');
+            const apptSel = document.getElementById('apptClientSelect');
+            if (posSel) posSel.value = newClientId;
+            if (apptSel) apptSel.value = newClientId;
+            updatePosClientDebtBanner();
+          }
+        });
       });
 
       // POS Controls
@@ -4125,7 +4334,16 @@ function setupSalonBrandingUploads() {
         const method = document.getElementById('posPaymentMethod').value;
         const notes = document.getElementById('posNotesInput').value.trim();
 
-        const nextNum = 1001 + state.invoices.length;
+        let maxInvNum = 1000;
+        (state.invoices || []).forEach(inv => {
+          const m = String(inv.id || '').match(/INV-(\d+)/i);
+          if (m) {
+            const n = parseInt(m[1], 10);
+            if (!isNaN(n) && n > maxInvNum) maxInvNum = n;
+          }
+        });
+        const now = Date.now();
+        const nextNum = maxInvNum + 1;
         const newInv = {
           id: `INV-${nextNum}`,
           date: getTodayIso(),
@@ -4137,14 +4355,18 @@ function setupSalonBrandingUploads() {
           depositApplied,
           paid,
           Method: method,
-          notes
+          notes,
+          updatedAt: now
         };
 
         state.invoices.push(newInv);
 
         if (posLinkedApptId) {
           const apt = state.appointments.find(a => a.id === posLinkedApptId);
-          if (apt) apt.status = 'completed';
+          if (apt) {
+            apt.status = 'completed';
+            apt.updatedAt = now;
+          }
           posLinkedApptId = null;
         }
 
@@ -4153,10 +4375,14 @@ function setupSalonBrandingUploads() {
         document.getElementById('posDepositInput').value = '0';
         document.getElementById('posPaidInput').value = '0';
         document.getElementById('posNotesInput').value = '';
-        saveState();
-        renderAll();
-        openReceiptModal(newInv.id);
-        showToast(state.lang === 'ar' ? 'تم حفظ الفاتورة واحتساب الرعبون والدفعة بنجاح!' : 'Invoice saved & client balance updated!');
+
+        persistAndSync({
+          button: document.getElementById('btnSaveInvoice'),
+          successMessage: state.lang === 'ar' ? 'تم حفظ الفاتورة ومزامنتها في Supabase بنجاح ✨' : 'Invoice saved & synced to Supabase!',
+          onSuccess: () => {
+            openReceiptModal(newInv.id);
+          }
+        });
       });
 
       document.getElementById('filterInvoiceBalance').addEventListener('change', renderInvoicesHistoryTable);
@@ -4208,23 +4434,26 @@ function setupSalonBrandingUploads() {
           return;
         }
 
+        const now = Date.now();
         if (apptId) {
           const apt = state.appointments.find(a => a.id === apptId);
           if (apt) {
             apt.depositPaid = amount;
             apt.depositMethod = method;
             if (note) apt.notes = note;
+            apt.updatedAt = now;
           }
-          saveState();
-          document.getElementById('modalPayDebt').classList.add('hidden');
-          renderAll();
-          showToast(state.lang === 'ar' ? `تم تسجيل رعبون الحجز (${formatMoney(amount)}) بنجاح!` : `Recorded ${formatMoney(amount)} booking deposit!`);
+          persistAndSync({
+            button: document.getElementById('btnConfirmDebtPayment'),
+            modalId: 'modalPayDebt',
+            successMessage: state.lang === 'ar' ? `تم تسجيل رعبون الحجز (${formatMoney(amount)}) ومزامنته في Supabase بنجاح ✨` : `Recorded ${formatMoney(amount)} booking deposit!`
+          });
           return;
         }
 
         if (!state.debtPayments) state.debtPayments = [];
         state.debtPayments.push({
-          id: 'PAY-' + Date.now().toString().slice(-4),
+          id: 'PAY-' + now.toString().slice(-4),
           date: getTodayIso(),
           clientId: cid,
           amount,
@@ -4232,15 +4461,17 @@ function setupSalonBrandingUploads() {
           method,
           note: note || (mode === 'deposit'
             ? (state.lang === 'ar' ? 'دفعة رعبون حجز مسبق' : 'Advance booking deposit')
-            : (state.lang === 'ar' ? 'دفعة تسديد ذمة' : 'Balance payment'))
+            : (state.lang === 'ar' ? 'دفعة تسديد ذمة' : 'Balance payment')),
+          updatedAt: now
         });
 
-        saveState();
-        document.getElementById('modalPayDebt').classList.add('hidden');
-        renderAll();
-        showToast(state.lang === 'ar'
-          ? (mode === 'deposit' ? `تم تسجيل رعبون بقيمة ${formatMoney(amount)} للزبونة!` : `تم تسجيل تسديد ${formatMoney(amount)} بنجاح!`)
-          : `Recorded ${formatMoney(amount)} payment!`);
+        persistAndSync({
+          button: document.getElementById('btnConfirmDebtPayment'),
+          modalId: 'modalPayDebt',
+          successMessage: state.lang === 'ar'
+            ? (mode === 'deposit' ? `تم تسجيل رعبون بقيمة ${formatMoney(amount)} ومزامنته بنجاح ✨` : `تم تسجيل تسديد ${formatMoney(amount)} ومزامنته بنجاح ✨`)
+            : `Recorded ${formatMoney(amount)} payment!`
+        });
       });
 
       // Services Filters & Save
@@ -4260,17 +4491,19 @@ function setupSalonBrandingUploads() {
           return;
         }
 
+        const now = Date.now();
         if (editId) {
           const idx = state.services.findIndex(s => s.id === editId);
-          if (idx > -1) state.services[idx] = { ...state.services[idx], nameAr, nameEn, category, price, duration };
+          if (idx > -1) state.services[idx] = { ...state.services[idx], nameAr, nameEn, category, price, duration, updatedAt: now };
         } else {
-          state.services.push({ id: 'srv-' + Date.now().toString().slice(-4), nameAr, nameEn, category, price, duration });
+          state.services.push({ id: 'srv-' + now.toString().slice(-4), nameAr, nameEn, category, price, duration, updatedAt: now });
         }
 
-        saveState();
-        document.getElementById('modalService').classList.add('hidden');
-        renderAll();
-        showToast(state.lang === 'ar' ? 'تم حفظ الخدمة والسعر ✨' : 'Service saved!');
+        persistAndSync({
+          button: document.getElementById('btnSaveServiceSubmit'),
+          modalId: 'modalService',
+          successMessage: state.lang === 'ar' ? 'تم حفظ الخدمة والسعر ومزامنتها في Supabase بنجاح ✨' : 'Service saved & synced!'
+        });
       });
 
       // Expenses Adder
@@ -4282,27 +4515,32 @@ function setupSalonBrandingUploads() {
           showToast(state.lang === 'ar' ? 'أدخلي بيان المصروف والمبلغ' : 'Enter expense description and amount', 'error');
           return;
         }
+        const now = Date.now();
         if (!state.expenses) state.expenses = [];
-        state.expenses.push({ id: 'EXP-' + Date.now().toString().slice(-4), date: getTodayIso(), title, category, amount });
+        state.expenses.push({ id: 'EXP-' + now.toString().slice(-4), date: getTodayIso(), title, category, amount, updatedAt: now });
         document.getElementById('expTitleInput').value = '';
         document.getElementById('expAmountInput').value = '';
-        saveState();
-        renderAll();
-        showToast(state.lang === 'ar' ? 'تم تسجيل المصروف' : 'Expense added');
+        persistAndSync({
+          button: document.getElementById('btnAddExpense'),
+          successMessage: state.lang === 'ar' ? 'تم تسجيل المصروف ومزامنته في Supabase بنجاح ✨' : 'Expense added & synced'
+        });
       });
 
       // Settings & Backup
       document.getElementById('btnSaveSalonSettings').addEventListener('click', () => {
         state.settings = {
+          ...(state.settings || {}),
           nameAr: document.getElementById('setSalonNameAr').value.trim() || 'صالون رنا و جنى',
           nameEn: document.getElementById('setSalonNameEn').value.trim() || 'Lumière Beauty Lounge',
           phone: document.getElementById('setSalonPhone').value.trim(),
           lbpRate: Number(document.getElementById('setLbpRate').value) || 89500,
           address: document.getElementById('setSalonAddress').value.trim()
         };
-        saveState();
-        renderAll();
-        showToast(state.lang === 'ar' ? 'تم حفظ إعدادات الصالون بنجاح ✨' : 'Salon settings saved!');
+        state.updatedAt = Date.now();
+        persistAndSync({
+          button: document.getElementById('btnSaveSalonSettings'),
+          successMessage: state.lang === 'ar' ? 'تم حفظ إعدادات الصالون ومزامنتها بنجاح ✨' : 'Salon settings saved & synced!'
+        });
       });
 
       document.getElementById('btnExportJsonBackup').addEventListener('click', () => {
@@ -4519,9 +4757,11 @@ function setupSalonBrandingUploads() {
         const delApptId = target.getAttribute('data-delete-appt');
         if (delApptId) {
           state.appointments = state.appointments.filter(a => a.id !== delApptId);
-          saveState();
-          renderAll();
-          showToast(state.lang === 'ar' ? 'تم حذف الموعد' : 'Appointment deleted');
+          state._deleted = state._deleted || {};
+          state._deleted[delApptId] = Date.now();
+          persistAndSync({
+            successMessage: state.lang === 'ar' ? 'تم حذف الموعد ومزامنة التغيير ✨' : 'Appointment deleted & synced'
+          });
           return;
         }
 
@@ -4589,9 +4829,11 @@ function setupSalonBrandingUploads() {
             state.lang === 'ar' ? 'هل تريدين حذف هذه الفاتورة؟ سيتم تحديث رصيد الزبونة تلقائياً.' : 'Delete this invoice? Client balance will update automatically.',
             () => {
               state.invoices = state.invoices.filter(x => x.id !== delInvId);
-              saveState();
-              renderAll();
-              showToast(state.lang === 'ar' ? 'تم حذف الفاتورة' : 'Invoice deleted');
+              state._deleted = state._deleted || {};
+              state._deleted[delInvId] = Date.now();
+              persistAndSync({
+                successMessage: state.lang === 'ar' ? 'تم حذف الفاتورة ومزامنة التغيير ✨' : 'Invoice deleted & synced'
+              });
             }
           );
           return;
@@ -4625,8 +4867,11 @@ function setupSalonBrandingUploads() {
             state.lang === 'ar' ? 'هل أنتِ متأكدة من حذف ملف الزبونة؟' : 'Are you sure you want to delete this client?',
             () => {
               state.clients = state.clients.filter(c => c.id !== delCid);
-              saveState();
-              renderAll();
+              state._deleted = state._deleted || {};
+              state._deleted[delCid] = Date.now();
+              persistAndSync({
+                successMessage: state.lang === 'ar' ? 'تم حذف ملف الزبونة ومزامنة التغيير ✨' : 'Client deleted & synced'
+              });
             }
           );
           return;
@@ -4641,8 +4886,11 @@ function setupSalonBrandingUploads() {
         const delSrvId = target.getAttribute('data-delete-service');
         if (delSrvId) {
           state.services = state.services.filter(s => s.id !== delSrvId);
-          saveState();
-          renderAll();
+          state._deleted = state._deleted || {};
+          state._deleted[delSrvId] = Date.now();
+          persistAndSync({
+            successMessage: state.lang === 'ar' ? 'تم حذف الخدمة ومزامنة التغيير ✨' : 'Service deleted & synced'
+          });
           return;
         }
 
@@ -4650,8 +4898,11 @@ function setupSalonBrandingUploads() {
         const delExpId = target.getAttribute('data-delete-expense');
         if (delExpId) {
           state.expenses = (state.expenses || []).filter(x => x.id !== delExpId);
-          saveState();
-          renderAll();
+          state._deleted = state._deleted || {};
+          state._deleted[delExpId] = Date.now();
+          persistAndSync({
+            successMessage: state.lang === 'ar' ? 'تم حذف المصروف ومزامنة التغيير ✨' : 'Expense deleted & synced'
+          });
           return;
         }
       });
@@ -4858,6 +5109,25 @@ function setupSalonBrandingUploads() {
         applySyncTokenString(raw);
       });
     }
+
+
+    // Expose core functions safely on window for cross-script access
+    window.DEFAULT_SUPABASE_URL = DEFAULT_SUPABASE_URL;
+    window.DEFAULT_SUPABASE_ANON_KEY = DEFAULT_SUPABASE_ANON_KEY;
+    window.getSupabaseCredentials = getSupabaseCredentials;
+    window.getSupabaseClientInstance = getSupabaseClientInstance;
+    window.pullStateFromCloud = pullStateFromCloud;
+    window.pushStateToCloud = pushStateToCloud;
+    window.persistAndSync = persistAndSync;
+    window.saveState = saveState;
+    window.renderAll = renderAll;
+    window.renderAuthScreen = renderAuthScreen;
+    window.sanitizeState = sanitizeState;
+    window.mergeStates = mergeStates;
+    window.isUserActivelyEditing = isUserActivelyEditing;
+    window.getState = () => state;
+    window.setState = (s) => { state = s; };
+    window.state = state;
 
     // Initialize Application
     window.addEventListener('DOMContentLoaded', async () => {
