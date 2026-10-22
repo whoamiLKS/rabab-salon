@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" class="light">
 <head>
+  <script src="/salon-sync.js"></script>
   <script>
     // One-time switch to the dedicated salon project; preserve local salon data.
     try {
@@ -1381,18 +1382,48 @@
                 📋 نسخ كود SQL
               </button>
             </div>
-            <pre id="supabaseSqlCodeBlock" dir="ltr" class="p-2 rounded-lg bg-slate-900 text-emerald-300 text-[10px] font-mono overflow-x-auto leading-relaxed select-all">create table public.salon_data (
- id text primary key check (id = 'main_salon'),
+            <pre id="supabaseSqlCodeBlock" dir="ltr" class="p-2 rounded-lg bg-slate-900 text-emerald-300 text-[10px] font-mono overflow-x-auto leading-relaxed select-all">-- Current salon schema; preserves existing data.
+create table if not exists public.salon_data (
+ id text primary key check (id='main_salon'),
  state_json jsonb not null,
- updated_at timestamptz not null default now()
+ updated_at timestamptz not null default now(),
+ revision bigint not null default 1
+);
+alter table public.salon_data add column if not exists revision bigint not null default 1;
+create table if not exists public.salon_members (
+ user_id uuid primary key references auth.users(id) on delete cascade
 );
 alter table public.salon_data enable row level security;
-revoke all on public.salon_data from anon, authenticated;
+alter table public.salon_members enable row level security;
+revoke all on public.salon_data, public.salon_members from anon, authenticated;
 grant select, insert, update on public.salon_data to authenticated;
+grant select on public.salon_members to authenticated;
+drop policy if exists "Read own salon membership" on public.salon_members;
+create policy "Read own salon membership" on public.salon_members for select to authenticated
+using (user_id=(select auth.uid()));
+insert into public.salon_members(user_id)
+select id from auth.users where raw_app_meta_data-&gt;&gt;'salon_role'='owner' on conflict do nothing;
+drop policy if exists "Salon owner access" on public.salon_data;
 create policy "Salon owner access" on public.salon_data for all to authenticated
-using (id = 'main_salon' and (select auth.jwt()-&gt;'app_metadata'-&gt;&gt;'salon_role') = 'owner')
-with check (id = 'main_salon' and (select auth.jwt()-&gt;'app_metadata'-&gt;&gt;'salon_role') = 'owner');
-alter publication supabase_realtime add table public.salon_data;</pre>
+using (id='main_salon' and exists(select 1 from public.salon_members where user_id=(select auth.uid())))
+with check (id='main_salon' and exists(select 1 from public.salon_members where user_id=(select auth.uid())));
+create or replace function public.bump_salon_revision() returns trigger
+language plpgsql security invoker set search_path='' as $$
+begin
+ new.revision := old.revision+1;
+ new.updated_at := clock_timestamp();
+ return new;
+end;
+$$;
+drop trigger if exists bump_salon_revision on public.salon_data;
+create trigger bump_salon_revision before update on public.salon_data
+for each row execute function public.bump_salon_revision();
+do $$ begin
+ if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='salon_data') then
+  alter publication supabase_realtime add table public.salon_data;
+ end if;
+end $$;
+</pre>
           </div>
 
           <!-- Step B: Project URL & Anon/Publishable Key Inputs (Pre-configured!) -->
@@ -2151,11 +2182,10 @@ alter publication supabase_realtime add table public.salon_data;</pre>
     }
 
     function isUserActivelyEditing() {
-      // Only protect actively open editing modals, never block updates during normal page viewing
-      const openModals = document.querySelectorAll(
-        '#modalAppointment:not(.hidden), #modalClient:not(.hidden), #modalPayDebt:not(.hidden), #modalService:not(.hidden)'
-      );
-      return openModals.length > 0;
+      const active=document.activeElement;
+      if(active && (active.matches('input, textarea, select') || active.isContentEditable)) return true;
+      return Array.from(document.querySelectorAll('[id^="modal"]')).some(el =>
+        !el.classList.contains('hidden') && el.getClientRects().length > 0);
     }
 
     function loadState() {
@@ -2175,20 +2205,12 @@ alter publication supabase_realtime add table public.salon_data;</pre>
 
     let cloudSyncTimeout = null;
     function saveState(skipCloudPush = false) {
-      try {
-        state.updatedAt = Date.now();
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-      } catch (e) {
-        console.warn('LocalStorage save fallback:', e);
-      }
-      const { isConfigured } = getSupabaseCredentials();
-      if (!skipCloudPush && isConfigured) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+      if (!skipCloudPush) {
+        accountSync.capture();
         clearTimeout(cloudSyncTimeout);
-        cloudSyncTimeout = setTimeout(() => {
-          pushStateToCloud(true);
-        }, 800);
+        cloudSyncTimeout = setTimeout(() => pushStateToCloud(true), 0);
       }
-      updateCloudStatusBadges();
     }
 
     let cachedSbClient = null;
@@ -2219,170 +2241,64 @@ alter publication supabase_realtime add table public.salon_data;</pre>
       return headers;
     }
 
-    let isPushing = false;
-    let pendingPush = false;
-
-    async function pushStateToCloud(silent = false) {
-      const { url, key, isConfigured } = getSupabaseCredentials();
-      if (!isConfigured) return false;
-
-      if (isPushing) {
-        pendingPush = true;
-        return true;
+    const businessKeys = ['settings','clients','invoices','appointments','services','debtPayments','expenses','_deleted'];
+    const businessState = () => Object.fromEntries(businessKeys.map(k => [k, JSON.parse(JSON.stringify(state[k] || (k==='settings'||k==='_deleted'?{}:[])))]));
+    const syncClient = () => { const c=getSupabaseCredentials(); return getSupabaseClientInstance(c.url,c.key); };
+    const pendingKey = id => 'rabab_pending_v1:' + getSupabaseCredentials().url + ':' + id;
+    const accountSync = SalonSync.create({
+      get: businessState,
+      set: value => {
+        for(const key of businessKeys) if(value[key]!==undefined) state[key]=value[key];
+        window.state=state;
+        saveState(true);
+      },
+      persist: (id, changes) => {
+        try { localStorage.setItem(pendingKey(id), JSON.stringify(changes)); }
+        catch(error) { console.warn('Pending change storage failed',error); }
+      },
+      restore: id => { try { return JSON.parse(localStorage.getItem(pendingKey(id))||'[]'); } catch(_) { return []; } },
+      read: async () => {
+        const {data,error}=await syncClient().from(SUPABASE_TABLE_NAME).select('state_json,revision').eq('id',SUPABASE_ROW_ID).maybeSingle();
+        if(error)throw error;
+        return data;
+      },
+      commit: async (revision,value) => {
+        const {data,error}=await syncClient().from(SUPABASE_TABLE_NAME)
+          .update({state_json:value}).eq('id',SUPABASE_ROW_ID).eq('revision',revision)
+          .select('state_json,revision').maybeSingle();
+        if(error)throw error;
+        return data;
       }
-
-      isPushing = true;
+    });
+    window.initializeAccountSync = async id => {
       try {
-        const sb = getSupabaseClientInstance(url, key);
-        if (!sb) return false;
-
-        // 1. Fetch remote state to merge any additions from other devices first
-        let remoteState = null;
-        try {
-          const { data: rows, error: fetchErr } = await sb
-            .from(SUPABASE_TABLE_NAME)
-            .select('state_json, updated_at')
-            .eq('id', SUPABASE_ROW_ID)
-            .limit(1);
-
-          if (!fetchErr && Array.isArray(rows) && rows.length > 0 && rows[0]?.state_json) {
-            remoteState = sanitizeState(rows[0].state_json);
-          }
-        } catch (fetchEx) {
-          console.warn('Pre-push remote fetch warning:', fetchEx);
-        }
-
-        // 2. Intelligently merge remote state with local state
-        if (remoteState) {
-          const keepAuth = state.auth?.isAuthenticated || false;
-          state = mergeStates(state, remoteState);
-          if (state.auth) state.auth.isAuthenticated = keepAuth;
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-          } catch (_) {}
-        }
-
-        // 3. Prepare payload for cloud
-        const payload = JSON.parse(JSON.stringify(state));
-        if (payload.auth) {
-          delete payload.auth.password;
-          delete payload.auth.isAuthenticated;
-        }
-
-        const isoNow = new Date().toISOString();
-        const { error: upsertErr } = await sb
-          .from(SUPABASE_TABLE_NAME)
-          .upsert(
-            {
-              id: SUPABASE_ROW_ID,
-              state_json: payload,
-              updated_at: isoNow
-            },
-            { onConflict: 'id' }
-          );
-
-        if (upsertErr) throw upsertErr;
-
-        if (!silent) {
-          showToast(state.lang === 'ar' ? '⚡ تم حفظ ومزامنة البيانات على Supabase بنجاح!' : '⚡ Synced to Supabase successfully!');
-        }
+        const key='rabab_before_sync_v2:'+id;
+        if(!localStorage.getItem(key)) localStorage.setItem(key,JSON.stringify(state));
+      } catch(_) {}
+      return accountSync.login(id);
+    };
+    async function synchronizeAccount(silent) {
+      try {
+        await accountSync.sync();
         updateCloudStatusBadges(true);
+        if(!isUserActivelyEditing()) renderAll();
+        if(!silent)showToast('تم حفظ التعديلات وجلب أحدث بيانات الحساب ✅','success');
         return true;
-      } catch (err) {
-        console.warn('Supabase push warning:', err);
-        if (!silent) {
-          showToast(
-            state.lang === 'ar'
-              ? 'تعذّر المزامنة مع Supabase: ' + (err.message || 'خطأ في الاتصال')
-              : 'Sync failed: ' + (err.message || ''),
-            'warning'
-          );
-        }
+      } catch(error) {
+        updateCloudStatusBadges(false);
+        console.warn('Account sync failed:',error);
+        if(!silent)showToast('تعذّرت المزامنة؛ التعديلات محفوظة على هذا الجهاز: '+error.message,'warning');
         return false;
-      } finally {
-        isPushing = false;
-        if (pendingPush) {
-          pendingPush = false;
-          setTimeout(() => pushStateToCloud(true), 300);
-        }
       }
     }
-
-    let isPulling = false;
-    async function pullStateFromCloud(silent = false) {
-      const { url, key, isConfigured } = getSupabaseCredentials();
-      if (!isConfigured) return false;
-
-      if (isPulling) return true;
-      isPulling = true;
-      try {
-        let rows = null;
-        const sb = getSupabaseClientInstance(url, key);
-        if (sb) {
-          const { data, error } = await sb
-            .from(SUPABASE_TABLE_NAME)
-            .select('state_json, updated_at')
-            .eq('id', SUPABASE_ROW_ID)
-            .limit(1);
-          if (error) throw error;
-          rows = data;
-        } else {
-          const endpoint = `${url}/rest/v1/${SUPABASE_TABLE_NAME}?id=eq.${SUPABASE_ROW_ID}&select=state_json,updated_at`;
-          const res = await fetch(endpoint, {
-            method: 'GET',
-            headers: buildSupabaseRestHeaders(key, { 'Accept': 'application/json' }),
-            cache: 'no-store'
-          });
-          if (!res.ok) {
-            const errText = await res.text();
-            throw new Error(`HTTP ${res.status}: ${errText}`);
-          }
-          rows = await res.json();
-        }
-
-        if (Array.isArray(rows) && rows.length > 0 && rows[0]?.state_json) {
-          const remoteData = sanitizeState(rows[0].state_json);
-          if (remoteData) {
-            const keepAuthSession = state.auth?.isAuthenticated || false;
-            state = mergeStates(state, remoteData);
-            if (state.auth) state.auth.isAuthenticated = keepAuthSession;
-
-            try {
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-            } catch (_) {}
-
-            // Update UI safely without wiping what user is actively typing
-            if (!isUserActivelyEditing()) {
-              renderAll();
-            } else {
-              updateCloudStatusBadges(true);
-            }
-
-            if (!silent) {
-              showToast(state.lang === 'ar' ? '⚡ تم سحب أحدث البيانات من Supabase!' : '⚡ Pulled latest data from Supabase!');
-            }
-            updateCloudStatusBadges(true);
-            return true;
-          }
-        } else if (Array.isArray(rows) && rows.length === 0) {
-          // Table exists and row is empty -> seed it with current local state!
-          await pushStateToCloud(silent);
-          return true;
-        }
-      } catch (err) {
-        console.warn('Supabase pull warning:', err);
-        if (!silent) {
-          showToast(
-            state.lang === 'ar'
-              ? 'تأكدي من تشغيل كود الـ SQL (إنشاء جدول salon_data) داخل Supabase -> SQL Editor.'
-              : 'Ensure table salon_data is created in Supabase SQL Editor.',
-            'warning'
-          );
-        }
-      } finally {
-        isPulling = false;
-      }
-      return false;
+    async function pushStateToCloud(silent=false) {
+      accountSync.capture();
+      return synchronizeAccount(silent);
+    }
+    async function pullStateFromCloud(silent=false) {
+      // Automatic refresh never interrupts an open edit form.
+      if(silent && isUserActivelyEditing()) return false;
+      return synchronizeAccount(silent);
     }
 
     async function persistAndSync({
@@ -2400,7 +2316,7 @@ alter publication supabase_realtime add table public.salon_data;</pre>
       }
 
       state.updatedAt = Date.now();
-      saveState(true);
+      saveState();
 
       let success = false;
       try {
@@ -2429,7 +2345,7 @@ alter publication supabase_realtime add table public.salon_data;</pre>
         showToast(successMessage || (state.lang === 'ar' ? 'تم الحفظ والمزامنة في قاعدة البيانات بنجاح ✨' : 'Saved and synced to database successfully ✨'), 'success');
       } else {
         showToast(state.lang === 'ar'
-          ? 'تم الحفظ على هذا الجهاز، وتعذّر الاتصال بقاعدة البيانات حالياً (سيتم الرفع تلقائياً فور توفر الإنترنت)'
+          ? 'التعديل محفوظ محلياً وبانتظار تأكيد قاعدة البيانات؛ ستتم إعادة المحاولة تلقائياً'
           : 'Saved locally, will sync to cloud when connected.', 'warning');
       }
       return success;

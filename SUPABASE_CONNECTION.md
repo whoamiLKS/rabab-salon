@@ -1,21 +1,13 @@
-# Rabab Salon — Supabase connection
+# Account-based salon synchronization
 
-Project: `wicakbsswxzhwlbxhxxs` (Frankfurt).
-The browser uses a publishable key. The salon_data table has RLS and Realtime enabled.
+The deployed Supabase project is `wicakbsswxzhwlbxhxxs`.
+Access is controlled by `salon_members.user_id`, matching the authenticated account.
+To authorize an additional trusted account, insert its Auth user ID into salon_members via the dashboard.
+There is no device limit. Both sessions must use an authorized account.
 
-## Create the owner login
-1. Open Supabase Authentication → Users → Add user → Create new user.
-2. Choose an email and password, and enable Auto Confirm User.
-3. In SQL Editor, grant that account salon access (replace the email):
-```sql
-update auth.users
-set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)
-  || '{"salon_role":"owner"}'::jsonb
-where email = 'YOUR_OWNER_EMAIL';
-```
-4. Sign in at https://rabab-salon.vercel.app/ using that account.
-   If already signed in, sign out and back in to refresh permissions.
+Every business edit is queued locally per Supabase project and user ID. The client reads the current server revision and applies only actual local edits. The write succeeds only if that revision is still current; otherwise it re-reads and reapplies the edits. The database trigger increments revisions and supplies the update timestamp.
+Realtime and periodic polling refresh other sessions. Editing forms are not overwritten by background refreshes. Pending edits survive reloads and connection failures. Success is displayed only after the write is confirmed.
 
-Old-project users are not transferred. Existing browser salon data is retained.
-The first successful owner sign-in initializes the new cloud row from the browser.
-Cross-device sync requires the same owner account on both devices.
+The first load of this version keeps a local recovery snapshot under `rabab_before_sync_v2:<user-id>`. Existing untracked cache is not automatically uploaded over the canonical database.
+
+Run regression tests with `node --test tests/sync.test.cjs`.

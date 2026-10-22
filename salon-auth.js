@@ -38,22 +38,7 @@
     if (refreshing || (document.hidden && !force)) return;
     refreshing = true;
     try {
-      const sb = ensureClient();
-      const { data: rows, error } = await sb
-        .from('salon_data')
-        .select('updated_at')
-        .eq('id', 'main_salon')
-        .limit(1);
-
-      if (!error && Array.isArray(rows) && rows.length > 0) {
-        const stamp = rows[0]?.updated_at || '';
-        if (stamp && (stamp !== lastCloudUpdate || force)) {
-          lastCloudUpdate = stamp;
-          if (typeof window.pullStateFromCloud === 'function') {
-            await window.pullStateFromCloud(true);
-          }
-        }
-      }
+      if (typeof window.pullStateFromCloud === 'function') await window.pullStateFromCloud(true);
     } catch (e) {
       console.warn('Sync poll check warning:', e);
     } finally {
@@ -117,57 +102,10 @@
       return;
     }
 
-    // Authenticated! Pull latest cloud state
-    let ok = false;
-    if (typeof window.pullStateFromCloud === 'function') {
-      try {
-        ok = await window.pullStateFromCloud(true);
-      } catch (e) {
-        console.warn('Initial pullStateFromCloud error:', e);
-      }
-    }
-
-    // Direct fallback if pullStateFromCloud didn't succeed
+    await window.initializeAccountSync(user.id);
+    const ok = await window.pullStateFromCloud(true);
     if (!ok) {
-      try {
-        const { data: rows, error: readError } = await sb
-          .from('salon_data')
-          .select('state_json, updated_at')
-          .eq('id', 'main_salon')
-          .limit(1);
-
-        if (readError) {
-          message('خطأ في تحميل البيانات من Supabase: ' + readError.message);
-          showGate();
-          return;
-        }
-
-        if (rows && rows.length > 0 && rows[0]?.state_json) {
-          lastCloudUpdate = rows[0]?.updated_at || '';
-          const parseFn = window.sanitizeState || (raw => (typeof raw === 'string' ? JSON.parse(raw) : raw));
-          const remoteData = parseFn(rows[0].state_json);
-          if (remoteData) {
-            const currentState = (typeof window.getState === 'function' ? window.getState() : window.state) || {};
-            const mergeFn = window.mergeStates || ((loc, rem) => ({ ...rem, ...loc }));
-            const merged = mergeFn(currentState, remoteData);
-            if (typeof window.setState === 'function') window.setState(merged);
-            else window.state = merged;
-            if (typeof window.saveState === 'function') window.saveState(true);
-            ok = true;
-          }
-        } else if (rows && rows.length === 0) {
-          if (typeof window.pushStateToCloud === 'function') {
-            await window.pushStateToCloud(true);
-          }
-          ok = true;
-        }
-      } catch (err) {
-        console.warn('Direct fallback load error:', err);
-      }
-    }
-
-    if (!ok) {
-      message('تعذّر تحميل بيانات الصالون من Supabase. تأكدي من الاتصال بالإنترنت.');
+      message('تعذّرت مزامنة الحساب. تحقّق من الاتصال وأعد تسجيل الدخول.');
       showGate();
       return;
     }
@@ -268,3 +206,4 @@
     try { await openSalon(); } catch (error) { showGate(); message(error.message); }
   });
 })();
+
