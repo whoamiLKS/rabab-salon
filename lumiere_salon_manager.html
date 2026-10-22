@@ -2127,14 +2127,21 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       try {
         const sb = getSupabaseClientInstance(url, key);
         if (sb) {
-          const newStamp = new Date().toISOString();
-          let request = sb.from(SUPABASE_TABLE_NAME)
-            .update({state_json: payload, updated_at: newStamp})
-            .eq('id', SUPABASE_ROW_ID);
-          if (cloudLastConfirmedUpdate) request = request.eq('updated_at', cloudLastConfirmedUpdate);
-          const {data, error} = await request.select('updated_at');
+          // Compare with server's exact timestamp to avoid false conflicts caused by
+          // PostgREST timestamp precision and browser time-zone formatting.
+          const { data: current, error: readError } = await sb.from(SUPABASE_TABLE_NAME)
+            .select('state_json, updated_at').eq('id', SUPABASE_ROW_ID).single();
+          if (readError) throw readError;
+          if (cloudLastConfirmedUpdate && current.updated_at !== cloudLastConfirmedUpdate) {
+            throw new Error('Cloud version changed; local changes kept.');
+          }
+          const {data, error} = await sb.from(SUPABASE_TABLE_NAME)
+            .update({state_json: payload, updated_at: new Date().toISOString()})
+            .eq('id', SUPABASE_ROW_ID)
+            .eq('updated_at', current.updated_at)
+            .select('updated_at');
           if (error) throw error;
-          if (!data?.length) throw new Error('Cloud version changed or access denied; local edits preserved.');
+          if (!data?.length) throw new Error('Cloud version changed during save; local changes kept.');
           cloudLastConfirmedUpdate = data[0].updated_at;
         } else {
           const endpoint = `${url}/rest/v1/${SUPABASE_TABLE_NAME}`;
