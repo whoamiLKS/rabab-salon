@@ -35,7 +35,10 @@
     const { data: { session }, error } = await ensureClient().auth.getSession();
     const user = session?.user;
     if (error || !user) { showGate(); return; }
-    const ok = await Promise.race([pullStateFromCloud(true), new Promise(resolve => setTimeout(() => resolve(false), 12000))]);
+    const {data: rows, error: readError} = await ensureClient().from('salon_data').select('state_json').eq('id','main_salon').limit(1);
+    if (readError) { message('خطأ في تحميل البيانات: ' + readError.message); showGate(); return; }
+    if (!rows?.length) { message('الحساب دخل، لكن سجل بيانات الصالون غير ظاهر له.'); showGate(); return; }
+    const ok = await pullStateFromCloud(true);
     if (!ok) {
       message('تعذّر تحميل بيانات الصالون من Supabase. تأكدي من الاتصال أو صلاحيات الحساب.');
       showGate();
