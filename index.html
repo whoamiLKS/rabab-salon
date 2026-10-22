@@ -2051,6 +2051,8 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
     }
 
     let cloudSyncTimeout = null;
+    let cloudWriteInProgress = false;
+    let cloudRefreshPending = false;
     function saveState(skipCloudPush = false) {
       try {
         state.updatedAt = Date.now();
@@ -2061,8 +2063,13 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       const { isConfigured } = getSupabaseCredentials();
       if (!skipCloudPush && isConfigured) {
         clearTimeout(cloudSyncTimeout);
-        cloudSyncTimeout = setTimeout(() => {
-          pushStateToCloud(true);
+        cloudSyncTimeout = setTimeout(async () => {
+          cloudSyncTimeout = null;
+          await pushStateToCloud(true);
+          if (cloudRefreshPending && !cloudSyncTimeout && !cloudWriteInProgress) {
+            cloudRefreshPending = false;
+            await pullStateFromCloud(true);
+          }
         }, 1200);
       }
       updateCloudStatusBadges();
@@ -2101,6 +2108,7 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
       const { url, key, isConfigured } = getSupabaseCredentials();
       if (!isConfigured) return false;
 
+      cloudWriteInProgress = true;
       const payload = JSON.parse(JSON.stringify(state));
       if (payload.auth) { delete payload.auth.password; delete payload.auth.isAuthenticated; }
 
@@ -2154,10 +2162,16 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
           );
         }
         return false;
+      } finally {
+        cloudWriteInProgress = false;
       }
     }
 
     async function pullStateFromCloud(silent = false) {
+      if (cloudSyncTimeout || cloudWriteInProgress) {
+        cloudRefreshPending = true;
+        return false;
+      }
       const { url, key, isConfigured } = getSupabaseCredentials();
       if (!isConfigured) return false;
 
@@ -2205,9 +2219,8 @@ grant all on table public.salon_data to anon, authenticated, service_role;</pre>
             return true;
           }
         } else if (Array.isArray(rows) && rows.length === 0) {
-          // Table exists and is empty -> seed it with current local state!
-          await pushStateToCloud(silent);
-          return true;
+          console.warn('No visible salon_data row. Refusing to overwrite cloud data with local sample.');
+          return false;
         }
       } catch (err) {
         console.warn('Supabase pull warning:', err);
