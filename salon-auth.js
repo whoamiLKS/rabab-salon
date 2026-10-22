@@ -6,9 +6,9 @@
   let refreshing = false;
   let lastCloudUpdate = '';
   async function refreshRemote() {
-    if (refreshing || document.hidden || cloudSyncTimeout) return;
+    if (refreshing || document.hidden || cloudSyncTimeout || window.salonHasUnsavedChanges?.() || window.salonIsEditingForm?.()) return;
     refreshing = true;
-    try { await pullStateFromCloud(true); } finally { refreshing = false; }
+    try { await pullStateFromCloud(true); } catch (error) { console.warn('Realtime refresh failed:', error); } finally { refreshing = false; }
   }
   function subscribeRealtime() {
     if (realtimeChannel) return;
