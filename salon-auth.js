@@ -6,6 +6,7 @@
   let refreshing = false;
   let lastCloudUpdate = '';
   let pollTimer = null;
+  let lastTouchCheck = 0;
 
   const $ = id => document.getElementById(id);
 
@@ -33,15 +34,28 @@
     return client;
   }
 
-  async function refreshRemote() {
-    if (refreshing || document.hidden) return;
+  async function checkAndPullRemote(force = false) {
+    if (refreshing || (document.hidden && !force)) return;
     refreshing = true;
     try {
-      if (typeof window.pullStateFromCloud === 'function') {
-        await window.pullStateFromCloud(true);
+      const sb = ensureClient();
+      const { data: rows, error } = await sb
+        .from('salon_data')
+        .select('updated_at')
+        .eq('id', 'main_salon')
+        .limit(1);
+
+      if (!error && Array.isArray(rows) && rows.length > 0) {
+        const stamp = rows[0]?.updated_at || '';
+        if (stamp && (stamp !== lastCloudUpdate || force)) {
+          lastCloudUpdate = stamp;
+          if (typeof window.pullStateFromCloud === 'function') {
+            await window.pullStateFromCloud(true);
+          }
+        }
       }
     } catch (e) {
-      console.warn('Realtime refresh warning:', e);
+      console.warn('Sync poll check warning:', e);
     } finally {
       refreshing = false;
     }
@@ -59,24 +73,28 @@
           const stamp = payload.new?.updated_at || '';
           if (stamp && stamp === lastCloudUpdate) return;
           lastCloudUpdate = stamp;
-          refreshRemote();
+          checkAndPullRemote(true);
         })
         .subscribe(status => {
           if (status === 'TIMED_OUT' || status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-            console.warn('Realtime channel status:', status, '- will reconnect on focus/poll');
+            console.warn('Realtime channel status:', status, '- will reconnect on poll');
           }
         });
     } catch (e) {
       console.warn('Realtime subscribe error:', e);
     }
 
-    // Resilient background polling for mobile devices where WebSockets get paused in background
-    if (!pollTimer) {
-      pollTimer = setInterval(() => {
-        if (!document.hidden) refreshRemote();
-      }, 25000);
-    }
+    // Fast polling every 2.5 seconds so both devices sync instantly even without WebSockets
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(() => {
+      if (!document.hidden) {
+        checkAndPullRemote();
+      }
+    }, 2500);
   }
+
+  // Expose checkAndPullRemote globally so tab switches and actions trigger it immediately
+  window.checkAndPullRemote = checkAndPullRemote;
 
   const message = text => { const el = $('salon-auth-message'); if (el) el.textContent = text; };
   function showGate() { gate?.classList.remove('hidden'); }
@@ -99,7 +117,7 @@
       return;
     }
 
-    // Try pulling state via main app handler first
+    // Authenticated! Pull latest cloud state
     let ok = false;
     if (typeof window.pullStateFromCloud === 'function') {
       try {
@@ -125,6 +143,7 @@
         }
 
         if (rows && rows.length > 0 && rows[0]?.state_json) {
+          lastCloudUpdate = rows[0]?.updated_at || '';
           const parseFn = window.sanitizeState || (raw => (typeof raw === 'string' ? JSON.parse(raw) : raw));
           const remoteData = parseFn(rows[0].state_json);
           if (remoteData) {
@@ -137,7 +156,6 @@
             ok = true;
           }
         } else if (rows && rows.length === 0) {
-          // Table exists and is empty -> initialize it with current state
           if (typeof window.pushStateToCloud === 'function') {
             await window.pushStateToCloud(true);
           }
@@ -181,11 +199,11 @@
     </div>`;
     document.body.appendChild(gate);
 
-    // Multi-device mobile lifecycle handlers
+    // Multi-device lifecycle: immediate sync on foreground, focus, unlock, and touch
     const onForeground = () => {
       if (!document.hidden) {
         if (!realtimeChannel) subscribeRealtime();
-        refreshRemote();
+        checkAndPullRemote(true);
       }
     };
     document.addEventListener('visibilitychange', onForeground);
@@ -193,8 +211,17 @@
     window.addEventListener('pageshow', onForeground);
     window.addEventListener('online', () => {
       if (typeof window.pushStateToCloud === 'function') window.pushStateToCloud(true);
-      refreshRemote();
+      checkAndPullRemote(true);
     });
+
+    // On user tap/click on phone, check if more than 3 seconds since last check
+    document.addEventListener('pointerdown', () => {
+      const now = Date.now();
+      if (now - lastTouchCheck > 3000) {
+        lastTouchCheck = now;
+        checkAndPullRemote();
+      }
+    }, { passive: true });
 
     $('salon-secure-login').addEventListener('submit', async e => {
       e.preventDefault();
@@ -216,7 +243,6 @@
       }
     });
 
-    // Legacy account creation must not bypass cloud authentication.
     const registerTab = $('tabAuthRegister');
     if (registerTab) registerTab.style.display = 'none';
     const registerForm = $('authRegisterForm');

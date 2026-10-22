@@ -1,6 +1,18 @@
 // Network-first service worker: deployed changes take priority over old cached pages.
-const CACHE_NAME = 'rabab-salon-online-v5';
-const CORE = ['./', './index.html', './salon-auth.js'];
+const CACHE_NAME = 'rabab-salon-online-v6';
+const CORE = [
+  './',
+  './index.html',
+  './salon-auth.js',
+  './manifest.json',
+  './favicon.ico',
+  './favicon-32x32.png',
+  './favicon-16x16.png',
+  './apple-touch-icon.png',
+  './icon-192.png',
+  './icon-512.png',
+  './icon-maskable-512.png'
+];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(CORE)).catch(() => {}));
   self.skipWaiting();
