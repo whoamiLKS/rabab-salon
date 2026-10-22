@@ -34,7 +34,7 @@
       capture(); // Preserve edits made while a network request was in flight.
       let value=copy(remote);
       for(const change of pending) value=rebase(change.before,change.after,value);
-      observed=copy(value);io.set(value);
+      io.set(value);observed=copy(io.get());
     }
     async function run(){
       if(!account) throw new Error('سجّل الدخول أولاً');

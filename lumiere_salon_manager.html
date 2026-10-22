@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" class="light">
 <head>
-  <script src="/salon-sync.js"></script>
+  <script src="/salon-sync.js?v=3"></script>
   <script>
     // One-time switch to the dedicated salon project; preserve local salon data.
     try {
@@ -1423,7 +1423,18 @@ do $$ begin
   alter publication supabase_realtime add table public.salon_data;
  end if;
 end $$;
-</pre>
+
+create or replace function public.bump_salon_revision() returns trigger
+language plpgsql security invoker set search_path='' as $$
+begin
+ if current_user = 'authenticated' and coalesce(nullif(current_setting('request.headers',true),'')::jsonb-&gt;&gt;'x-client-info','') <&gt; 'rabab-salon-sync/3' then
+  raise exception 'نسخة الموقع قديمة. حدّث الصفحة قبل الحفظ (Ctrl+Shift+R).' using errcode='P0001';
+ end if;
+ new.revision := old.revision+1;
+ new.updated_at := clock_timestamp();
+ return new;
+end;
+$$;</pre>
           </div>
 
           <!-- Step B: Project URL & Anon/Publishable Key Inputs (Pre-configured!) -->
@@ -2209,7 +2220,7 @@ end $$;
       if (!skipCloudPush) {
         accountSync.capture();
         clearTimeout(cloudSyncTimeout);
-        cloudSyncTimeout = setTimeout(() => pushStateToCloud(true), 0);
+        cloudSyncTimeout = setTimeout(() => pushStateToCloud(true), 400);
       }
     }
 
@@ -2221,7 +2232,8 @@ end $$;
         const sig = `${url}|${key}`;
         if (!cachedSbClient || cachedSbKeySig !== sig) {
           cachedSbClient = window.supabase.createClient(url, key, {
-            auth: { persistSession: true, autoRefreshToken: true }
+            auth: { persistSession: true, autoRefreshToken: true },
+            global: { headers: { "x-client-info": "rabab-salon-sync/3" } }
           });
           cachedSbKeySig = sig;
         }
@@ -3390,11 +3402,11 @@ end $$;
     }
 
     function renderSettingsForm() {
-      document.getElementById('setSalonNameAr').value = state.settings?.nameAr || '';
-      document.getElementById('setSalonNameEn').value = state.settings?.nameEn || '';
-      document.getElementById('setSalonPhone').value = state.settings?.phone || '';
-      document.getElementById('setLbpRate').value = state.settings?.lbpRate || 89500;
-      document.getElementById('setSalonAddress').value = state.settings?.address || '';
+      const fields={setSalonNameAr:'nameAr',setSalonNameEn:'nameEn',setSalonPhone:'phone',setLbpRate:'lbpRate',setSalonAddress:'address'};
+      for(const [id,key] of Object.entries(fields)) {
+        const el=document.getElementById(id);
+        if(el && document.activeElement!==el) el.value=state.settings?.[key] ?? (key==='lbpRate'?89500:'');
+      }
     }
 
 
@@ -4465,6 +4477,16 @@ function setupSalonBrandingUploads() {
       });
 
       // Settings & Backup
+      // Each actual settings edit becomes the saved value; it never waits for a full-form snapshot.
+      const liveSettings={setSalonNameAr:'nameAr',setSalonNameEn:'nameEn',setSalonPhone:'phone',setLbpRate:'lbpRate',setSalonAddress:'address'};
+      for(const [id,key] of Object.entries(liveSettings)) {
+        document.getElementById(id)?.addEventListener('input', event => {
+          const value=key==='lbpRate'?Number(event.target.value):event.target.value;
+          if(key==='lbpRate' && (!Number.isFinite(value)||value<=0)) return;
+          state.settings={...state.settings,[key]:value};
+          saveState();
+        });
+      }
       document.getElementById('btnSaveSalonSettings').addEventListener('click', () => {
         state.settings = {
           ...(state.settings || {}),
@@ -5086,6 +5108,6 @@ function setupSalonBrandingUploads() {
       // Cloud data is loaded once by salon-auth.js after session validation.
     });
   </script>
-  <script src="/salon-auth.js"></script>
+  <script src="/salon-auth.js?v=3"></script>
 </body>
 </html>

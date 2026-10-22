@@ -43,3 +43,17 @@ test('offline edits survive reload and retry; stale initial cache does not overw
  const fresh=f.device();await fresh.sync.login('b');await fresh.sync.sync();
  assert.equal(fresh.get().settings.name,'Offline');assert.equal(f.row().state_json.settings.name,'Offline');
 });
+test('polling a cloud record with extra fields does not generate phantom writes',async()=>{
+ let local={settings:{name:'Old'}},writes=0;
+ const row={state_json:{settings:{name:'Cloud'},auth:{username:'legacy'},updatedAt:42},revision:1};
+ const engine=SalonSync.create({get:()=>local,set:v=>local={settings:v.settings},persist:()=>{},restore:()=>[],read:async()=>clone(row),commit:async()=>{writes++;throw Error('phantom write')}});
+ await engine.login('owner');await engine.sync();await engine.sync();await engine.sync();
+ assert.equal(local.settings.name,'Cloud');assert.equal(writes,0);
+});
+test('last saved name is canonical in the database and both sessions',async()=>{
+ const f=fixture(),a=f.device(),b=f.device();await a.sync.login('a');await b.sync.login('b');
+ a.edit(s=>s.settings.name='Computer');await a.sync.sync();await b.sync.sync();
+ assert.equal(b.get().settings.name,'Computer');
+ b.edit(s=>s.settings.name='Phone');await b.sync.sync();await a.sync.sync();
+ assert.equal(f.row().state_json.settings.name,'Phone');assert.equal(a.get().settings.name,'Phone');
+});

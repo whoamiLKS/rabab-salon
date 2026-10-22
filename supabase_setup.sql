@@ -39,3 +39,15 @@ do $$ begin
   alter publication supabase_realtime add table public.salon_data;
  end if;
 end $$;
+
+create or replace function public.bump_salon_revision() returns trigger
+language plpgsql security invoker set search_path='' as $$
+begin
+ if current_user = 'authenticated' and coalesce(nullif(current_setting('request.headers',true),'')::jsonb->>'x-client-info','') <> 'rabab-salon-sync/3' then
+  raise exception 'نسخة الموقع قديمة. حدّث الصفحة قبل الحفظ (Ctrl+Shift+R).' using errcode='P0001';
+ end if;
+ new.revision := old.revision+1;
+ new.updated_at := clock_timestamp();
+ return new;
+end;
+$$;
