@@ -2,6 +2,7 @@
 <html lang="ar" dir="rtl" class="light">
 <head>
   <script src="/salon-sync.js?v=3"></script>
+  <script src="/salon-history.js?v=1"></script>
   <script>
     // One-time switch to the dedicated salon project; preserve local salon data.
     try {
@@ -652,6 +653,20 @@
 
     <!-- ==================== TAB 6: REPORTS, PROFITS & EXPENSES ==================== -->
     <section id="view-reports" class="tab-view hidden space-y-6">
+      <div class="bg-white dark:bg-slate-900 rounded-2xl border border-rose-100 dark:border-slate-700 p-4 space-y-3">
+        <label for="reportPeriod" class="font-bold text-sm">فترة التقارير والأرباح / Report period</label>
+        <div class="flex flex-wrap gap-3 items-center">
+          <select id="reportPeriod" class="rounded-xl p-2 border dark:bg-slate-800" aria-label="فترة التقرير">
+            <option value="all">كل الأوقات / All time</option><option value="today">اليوم / Today</option><option value="yesterday">مبارح / Yesterday</option>
+            <option value="week">آخر ٧ أيام / Last 7 days</option><option value="lastWeek">الأسبوع الماضي / Previous week</option>
+            <option value="month">هالشهر / This month</option><option value="lastMonth">الشهر الماضي / Previous month</option><option value="year">هالسنة / This year</option><option value="custom">تاريخ محدد / Custom</option>
+          </select>
+          <label>من <input id="reportFrom" type="date" disabled class="rounded-xl p-2 border dark:bg-slate-800"></label>
+          <label>إلى <input id="reportTo" type="date" disabled class="rounded-xl p-2 border dark:bg-slate-800"></label>
+        </div>
+        <p id="reportRangeLabel" class="text-xs text-rose-600" role="status"></p>
+        <p class="text-xs text-slate-500">الأسبوع الماضي: الإثنين–الأحد. المقبوضات بحسب تاريخ الدفع؛ العربون القديم بدون تاريخ دفع يُحسب بتاريخ الموعد. الديون الافتتاحية ليست مبيعات الفترة.</p>
+      </div>
       <!-- Financial Summary Cards -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div class="bg-white dark:bg-[#1a141f] p-4 rounded-2xl border border-rose-100 dark:border-slate-800 shadow-sm">
@@ -773,8 +788,14 @@
             <label class="flex items-center justify-center gap-2 p-3 rounded-xl text-xs sm:text-sm font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition cursor-pointer">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
               <span data-i18n="importBackupBtn">استعادة نسخة محفوظة</span>
-              <input type="file" id="inputImportJsonBackup" accept=".json" class="hidden" />
+              <input type="file" id="inputImportJsonBackup" accept=".json,.gz,application/gzip" class="hidden" />
             </label>
+            <div class="rounded-xl border border-rose-200 dark:border-slate-700 p-3 space-y-2">
+              <strong class="text-sm">الأرشيف السنوي المحلي</strong>
+              <p class="text-xs text-slate-500">تُضغط نسخة من السجلات الأقدم من سنة تلقائياً عند فتح التطبيق والمزامنة، وتُحفظ بهذا المتصفح. السجلات الأصلية تبقى بالتطبيق. نزّلي الملف للاحتفاظ به خارج المتصفح؛ مسح بيانات المتصفح يمسح الأرشيف المحلي.</p>
+              <p id="archiveStatus" class="text-xs" role="status">يُفحص بعد تسجيل الدخول والمزامنة</p>
+              <button type="button" id="btnDownloadArchive" class="px-4 py-2 rounded-xl bg-rose-600 text-white text-xs font-bold">تنزيل الأرشيف المضغوط (.json.gz)</button>
+            </div>
 
             <button type="button" id="btnExportCsvReport" class="flex items-center justify-center gap-2 p-3 rounded-xl text-xs sm:text-sm font-bold bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 transition">
               <span data-i18n="exportCsvBtn">تصدير كشف الزبائن والديون (CSV/Excel)</span>
@@ -1932,7 +1953,7 @@ $$;</pre>
     };
 
     function getCategories() {
-      if (!Array.isArray(state.categories) || state.categories.length === 0) {
+      if (!Array.isArray(state.categories)) {
         state.categories = [
           { id: 'hair', nameAr: 'الشعر', nameEn: 'Hair' },
           { id: 'nails', nameAr: 'الأظافر', nameEn: 'Nails' },
@@ -2161,7 +2182,7 @@ $$;</pre>
           ...(defaultState.settings || {}),
           ...(s.settings || {})
         },
-        categories: Array.isArray(s.categories) && s.categories.length > 0 ? s.categories : defaultState.categories,
+        categories: Array.isArray(s.categories) ? s.categories : defaultState.categories,
         services: Array.isArray(s.services) ? s.services : defaultState.services,
         clients: Array.isArray(s.clients) ? s.clients : defaultState.clients,
         appointments: Array.isArray(s.appointments) ? s.appointments : defaultState.appointments,
@@ -2329,7 +2350,23 @@ $$;</pre>
         return data;
       }
     });
+    let archiveAccount='', archiveChecked='', archiveBusy=false;
+    async function checkLocalArchive(force=false) {
+      if(!archiveAccount||archiveBusy)return;
+      const today=getTodayIso();if(!force&&archiveChecked===today)return;
+      archiveBusy=true;
+      try {
+        const snapshot=SalonHistory.oldData(businessState());
+        const count=['invoices','appointments','debtPayments','expenses'].reduce((n,k)=>n+snapshot.data[k].length,0);
+        if(!count){document.getElementById('archiveStatus').textContent='لا توجد سجلات أقدم من سنة بعد';archiveChecked=today;return;}
+        const blob=await SalonHistory.encode(snapshot);
+        await SalonHistory.storage(archiveAccount+':annual',{blob,createdAt:snapshot.createdAt,count});
+        document.getElementById('archiveStatus').textContent=`محفوظ على هذا الجهاز: ${count} سجل • ${(blob.size/1024).toFixed(1)} KB • ${today}`;
+        archiveChecked=today;
+      } finally {archiveBusy=false;}
+    }
     window.initializeAccountSync = async id => {
+      archiveAccount=getSupabaseCredentials().url+':'+id;archiveChecked='';
       try {
         const key='rabab_before_sync_v2:'+id;
         if(!localStorage.getItem(key)) localStorage.setItem(key,JSON.stringify(state));
@@ -2339,6 +2376,7 @@ $$;</pre>
     async function synchronizeAccount(silent) {
       try {
         await accountSync.sync();
+        checkLocalArchive().catch(()=>{document.getElementById('archiveStatus').textContent='تعذّر حفظ الأرشيف المحلي؛ البيانات الأصلية محفوظة. جرّبي التنزيل مجدداً.';});
         updateCloudStatusBadges(true);
         if(!isUserActivelyEditing()) renderAll();
         if(!silent)showToast('تم حفظ التعديلات وجلب أحدث بيانات الحساب ✅','success');
@@ -3352,7 +3390,12 @@ $$;</pre>
     // ==================== RENDER REPORTS, PROFITS & EXPENSES TAB ====================
     function renderReportsAndExpenses() {
       const isAr = state.lang === 'ar';
-      const fin = getGlobalFinancials();
+      let reportRange;
+      try { reportRange = SalonHistory.range(document.getElementById('reportPeriod').value, document.getElementById('reportFrom').value, document.getElementById('reportTo').value); }
+      catch(error) { document.getElementById('reportRangeLabel').textContent=error.message; return; }
+      document.getElementById('reportRangeLabel').textContent=reportRange[0] ? reportRange.join(' → ') : (isAr ? 'كل الأوقات' : 'All time');
+      const inPeriod = value => SalonHistory.within(value,reportRange);
+      const fin = SalonHistory.financials(state,reportRange);
 
       document.getElementById('repValGross').textContent = formatMoney(fin.totalBilled);
       document.getElementById('repValCollected').textContent = formatMoney(fin.totalCollected);
@@ -3363,7 +3406,7 @@ $$;</pre>
         : `Accrued Profit (incl. receivables): ${formatMoney(fin.accruedNetProfit)}`;
 
       const expEl = document.getElementById('expensesListContainer');
-      const exps = [...(state.expenses || [])].reverse();
+      const exps = [...(state.expenses || [])].filter(e=>inPeriod(e.date)).reverse();
       if (exps.length === 0) {
         expEl.innerHTML = `<div class="py-6 text-center text-xs text-slate-400">${isAr ? 'لا توجد مصاريف مسجلة بعد.' : 'No expenses recorded yet.'}</div>`;
       } else {
@@ -3382,7 +3425,7 @@ $$;</pre>
       }
 
       const srvStats = {};
-      state.invoices.forEach(inv => {
+      state.invoices.filter(inv=>inPeriod(inv.date)).forEach(inv => {
         (inv.items || []).forEach(it => {
           const key = it.id || it.nameAr;
           if (!srvStats[key]) {
@@ -3412,7 +3455,7 @@ $$;</pre>
       // Recent Deposits & Debt Payments Log
       const payEl = document.getElementById('recentPaymentsLogList');
       const combinedLogs = [];
-      (state.debtPayments || []).forEach(p => {
+      (state.debtPayments || []).filter(p=>inPeriod(p.date)).forEach(p => {
         const c = state.clients.find(x => x.id === p.clientId);
         combinedLogs.push({
           date: p.date,
@@ -3423,10 +3466,10 @@ $$;</pre>
         });
       });
       (state.appointments || []).forEach(a => {
-        if ((Number(a.depositPaid) || 0) > 0) {
+        if ((Number(a.depositPaid) || 0) > 0 && a.status !== 'cancelled' && inPeriod(a.depositDate || a.date)) {
           const c = state.clients.find(x => x.id === a.clientId);
           combinedLogs.push({
-            date: a.date,
+            date: a.depositDate || a.date,
             clientName: c ? c.name : '',
             amount: a.depositPaid,
             badge: isAr ? 'رعبون موعد' : 'Booking Deposit',
@@ -4211,7 +4254,7 @@ function setupSalonBrandingUploads() {
         if (editId) {
           const idx = state.appointments.findIndex(a => a.id === editId);
           if (idx > -1) {
-            state.appointments[idx] = { ...state.appointments[idx], clientId, date, time, staff, status, depositPaid, depositMethod, notes, serviceIds, updatedAt: now };
+            state.appointments[idx] = { ...state.appointments[idx], clientId, date, time, staff, status, depositPaid, depositDate: state.appointments[idx].depositDate || (Number(state.appointments[idx].depositPaid) ? state.appointments[idx].date : getTodayIso()), depositMethod, notes, serviceIds, updatedAt: now };
           }
         } else {
           state.appointments.push({
@@ -4222,6 +4265,7 @@ function setupSalonBrandingUploads() {
             staff,
             status,
             depositPaid,
+            depositDate: getTodayIso(),
             depositMethod,
             notes,
             serviceIds,
@@ -4448,6 +4492,7 @@ function setupSalonBrandingUploads() {
           const apt = state.appointments.find(a => a.id === apptId);
           if (apt) {
             apt.depositPaid = amount;
+            apt.depositDate = getTodayIso();
             apt.depositMethod = method;
             if (note) apt.notes = note;
             apt.updatedAt = now;
@@ -4584,6 +4629,17 @@ function setupSalonBrandingUploads() {
         });
       });
 
+      for(const id of ['reportPeriod','reportFrom','reportTo']) document.getElementById(id).addEventListener('change',()=>{
+        const custom=document.getElementById('reportPeriod').value==='custom';
+        document.getElementById('reportFrom').disabled=!custom;document.getElementById('reportTo').disabled=!custom;
+        if(custom){document.getElementById('reportFrom').value ||= getTodayIso();document.getElementById('reportTo').value ||= getTodayIso();}
+        renderReportsAndExpenses();
+      });
+      document.getElementById('btnDownloadArchive').addEventListener('click',async()=>{
+        try { await checkLocalArchive(true);const saved=await SalonHistory.storage(archiveAccount+':annual');if(!saved)throw Error('لا توجد بيانات أقدم من سنة بعد');
+          const url=URL.createObjectURL(saved.blob),a=document.createElement('a');a.href=url;a.download='salon-archive-'+saved.createdAt.slice(0,10)+'.json.gz';a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);
+        }catch(error){showToast(error.message,'error');}
+      });
       // Settings & Backup
       // Each actual settings edit becomes the saved value; it never waits for a full-form snapshot.
       const liveSettings={setSalonNameAr:'nameAr',setSalonNameEn:'nameEn',setSalonPhone:'phone',setLbpRate:'lbpRate',setSalonAddress:'address'};
@@ -4622,25 +4678,24 @@ function setupSalonBrandingUploads() {
         showToast(state.lang === 'ar' ? 'تم تنزيل النسخة الاحتياطية!' : 'Backup downloaded!');
       });
 
-      document.getElementById('inputImportJsonBackup').addEventListener('change', (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          try {
-            const imported = JSON.parse(ev.target.result);
-            if (imported && Array.isArray(imported.clients)) {
-              state = imported;
-              if (!state.auth) state.auth = { isAuthenticated: true, username: 'admin', password: '1234', ownerName: 'مدام ريما' };
-              saveState();
-              renderAll();
-              showToast(state.lang === 'ar' ? 'تمت استعادة البيانات بنجاح!' : 'Backup restored successfully!');
-            }
-          } catch (err) {
-            showToast(state.lang === 'ar' ? 'ملف غير صالح' : 'Invalid backup file', 'error');
-          }
-        };
-        reader.readAsText(file);
+      document.getElementById('inputImportJsonBackup').addEventListener('change', async (e) => {
+        const file=e.target.files?.[0]; e.target.value=''; if(!file)return;
+        try {
+          const imported=await SalonHistory.decode(file);
+          if(!await synchronizeAccount(true))throw Error('اتصلي بالإنترنت للمقارنة مع أحدث بيانات التطبيق');
+          const preview=SalonHistory.merge(state,imported);
+          openConfirmModal('استرداد ودمج النسخة', `إضافة ${preview.added} سجل ناقص، والإبقاء على ${preview.kept} سجل موجود. إعدادات التطبيق وحساب الدخول لن تتغيّر.`, async()=>{
+            try {
+              if(!await synchronizeAccount(true))throw Error('تعذّرت المزامنة، لم يتم الاسترداد');
+              const merged=SalonHistory.merge(state,imported);
+              // Preserve the current full snapshot before any restore mutation.
+              await SalonHistory.storage(archiveAccount+':before-restore',{blob:await SalonHistory.encode(businessState()),createdAt:new Date().toISOString()});
+              for(const key of SalonHistory.keys)state[key]=merged.state[key];
+              state._deleted=merged.state._deleted;
+              await persistAndSync({successMessage:`تم الدمج: أضفنا ${merged.added} سجل، والموجود بالتطبيق بقي كما هو`});
+            }catch(error){showToast(error.message,'error');}
+          });
+        }catch(error){showToast(error.message || 'ملف غير صالح','error');}
       });
 
       document.getElementById('btnExportCsvReport').addEventListener('click', () => {
@@ -4983,14 +5038,17 @@ function setupSalonBrandingUploads() {
             confirmMsg,
             async () => {
               const remaining = cats.filter(x => x.id !== delCatId);
-              const fallbackCatId = remaining[0]?.id || 'hair';
+              if (!remaining.length && linkedSvcs.length) remaining.push({id: crypto.randomUUID(), nameAr: 'غير مصنّف', nameEn: 'Uncategorized', updatedAt: Date.now()});
+              const fallbackCatId = remaining[0]?.id;
               if (linkedSvcs.length > 0) {
                 state.services.forEach(s => {
-                  if (s.category === delCatId) s.category = fallbackCatId;
+                  if (s.category === delCatId) { s.category = fallbackCatId; s.updatedAt = Date.now(); }
                 });
               }
 
               state.categories = remaining;
+              posCategoryFilter = "all";
+              document.getElementById("filterServiceCat").value = "all";
               state._deleted = state._deleted || {};
               state._deleted[delCatId] = Date.now();
 
