@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 114507)
+Total output lines: 5380
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" class="light">
 <head>
@@ -958,6 +961,10 @@
             <label class="text-xs font-bold text-slate-700 dark:text-slate-300" data-i18n="selectServicesForAppt">الخدمات المطلوبة في الموعد:</label>
             <span class="text-xs font-extrabold text-rose-600 dark:text-rose-400"><span data-i18n="estTotalLabel">إجمالي الحجز المقدّر:</span> <span id="apptEstTotalVal">$0</span></span>
           </div>
+          <label for="apptCategorySelect" id="apptCategoryLabel" class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">القسم</label>
+          <select id="apptCategorySelect" class="w-full mb-2 px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></select>
+          <p id="apptCategoryHint" class="text-xs text-slate-500 mb-2" role="status"></p>
+          <p id="apptSelectedSummary" class="text-xs font-semibold text-rose-600 mb-2" aria-live="polite"></p>
           <div id="apptServicesCheckboxes" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-40 overflow-y-auto custom-scroll p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/70 border border-slate-200 dark:border-slate-700"></div>
         </div>
 
@@ -1005,647 +1012,7 @@
         </div>
         <div>
           <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="clientPhoneLabel">رقم الهاتف (واتساب)</label>
-          <input type="text" id="clientPhoneInput" placeholder="70 123 456" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="clientOpeningDebtLabel">رصيد دين سابق قبل النظام ($ - اختياري)</label>
-          <input type="number" id="clientInitialDebtInput" min="0" step="0.5" value="0" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="notesLabel">ملاحظات (نوع الشعر، درجة الصبغة المفضلة، حساسية...)</label>
-          <textarea id="clientNotesInput" rows="2" placeholder="مثال: رقم الصبغة 7.1 أشقر رمادي..." class="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></textarea>
-        </div>
-        <div class="flex items-center justify-end gap-2 pt-2">
-          <button type="button" data-close-modal="modalClient" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" data-i18n="cancelBtn">إلغاء</button>
-          <button type="button" id="btnSaveClientSubmit" class="px-5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm" data-i18n="saveBtn">حفظ</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 3. Record Debt Payment OR Booking Deposit Modal (تسديد دفعة أو دفع رعبون للزبونة) -->
-  <div id="modalPayDebt" class="fixed inset-0 z-40 hidden bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white dark:bg-[#1a141f] w-full max-w-md rounded-2xl border border-emerald-200 dark:border-emerald-900 shadow-xl overflow-hidden">
-      <div class="px-5 py-4 bg-emerald-50 dark:bg-emerald-950/60 border-b border-emerald-100 dark:border-emerald-900 flex items-center justify-between">
-        <h3 id="payDebtModalHeader" class="font-extrabold text-base text-emerald-900 dark:text-emerald-300" data-i18n="payDebtModalTitle">تسجيل دفعة / دفع رعبون للزبونة</h3>
-        <button type="button" data-close-modal="modalPayDebt" class="text-slate-400 hover:text-rose-600 font-bold text-lg">✕</button>
-      </div>
-      <div class="p-5 space-y-4">
-        <input type="hidden" id="payDebtClientId" value="" />
-        <input type="hidden" id="payDebtApptId" value="" />
-
-        <!-- Client Selector (shown when opened from top header "دفع رعبون") -->
-        <div id="payDebtClientPickerWrap" class="hidden">
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="selectClientLabel">الزبونة:</label>
-          <select id="payDebtClientSelectDropdown" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></select>
-        </div>
-
-        <!-- Payment Type Selector: Debt Payment vs Advance Booking Deposit (رعبون) -->
-        <div class="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-100 dark:bg-slate-800">
-          <button type="button" id="btnTypeDepositMode" class="py-2 rounded-lg text-xs font-extrabold bg-emerald-600 text-white shadow-sm transition" data-i18n="paymentTypeDeposit">💵 دفع رعبون حجز</button>
-          <button type="button" id="btnTypeDebtMode" class="py-2 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 transition" data-i18n="paymentTypeDebt">💳 تسديد باقي / دين</button>
-        </div>
-        <input type="hidden" id="payDebtTypeMode" value="deposit" />
-
-        <div class="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 flex items-center justify-between">
-          <div>
-            <div id="payDebtClientName" class="font-bold text-sm text-slate-900 dark:text-white"></div>
-            <div id="payDebtSubLabel" class="text-xs text-amber-800 dark:text-amber-300" data-i18n="currentBalanceDueLabel">المبلغ المتبقي عليها حالياً:</div>
-          </div>
-          <div id="payDebtCurrentAmount" class="text-xl font-extrabold text-amber-600 dark:text-amber-400">$0.00</div>
-        </div>
-
-        <div>
-          <div class="flex items-center justify-between mb-1">
-            <label id="payDebtAmountFieldLabel" class="text-xs font-bold text-slate-700 dark:text-slate-300" data-i18n="amountPayingNowLabel">المبلغ المدفوع الآن ($):</label>
-            <button type="button" id="btnPayDebtFullAmount" class="text-xs font-bold text-emerald-600 dark:text-emerald-400 hover:underline" data-i18n="payEntireDebtBtn">تسديد كامل المبلغ</button>
-          </div>
-          <input type="number" id="payDebtInputAmount" min="0.5" step="0.5" class="w-full px-3.5 py-2.5 rounded-xl text-base font-extrabold bg-slate-50 dark:bg-slate-800 border-2 border-emerald-400 text-emerald-700 dark:text-emerald-300" />
-        </div>
-
-        <div class="grid grid-cols-2 gap-2.5">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="paymentMethodLabel">طريقة الدفع</label>
-            <select id="payDebtMethod" class="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <option value="cash" data-i18n="payCash">نقدي (Cash)</option>
-              <option value="whish" data-i18n="payWhish">Whish / OMT</option>
-              <option value="card" data-i18n="payCard">بطاقة (Card)</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="notesLabel">ملاحظة</label>
-            <input type="text" id="payDebtNote" placeholder="رعبون حجز / دفعة..." class="w-full px-3 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
-          </div>
-        </div>
-
-        <div class="flex items-center justify-end gap-2 pt-2">
-          <button type="button" data-close-modal="modalPayDebt" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" data-i18n="cancelBtn">إلغاء</button>
-          <button type="button" id="btnConfirmDebtPayment" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm" data-i18n="confirmPaymentBtn">تأكيد استلام الدفعة</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 4. Client Statement / Ledger History Modal (كشف حساب الزبونة التفصيلي) -->
-  <div id="modalClientStatement" class="fixed inset-0 z-40 hidden bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white dark:bg-[#1a141f] w-full max-w-2xl rounded-2xl border border-rose-100 dark:border-slate-800 shadow-xl overflow-hidden">
-      <div class="px-5 py-4 bg-rose-50/70 dark:bg-slate-800/60 border-b border-rose-100 dark:border-slate-800 flex items-center justify-between">
-        <div>
-          <h3 id="stmtClientNameTitle" class="font-extrabold text-base text-slate-900 dark:text-white">كشف حساب الزبونة</h3>
-          <p id="stmtClientPhoneSub" class="text-xs text-slate-500"></p>
-        </div>
-        <button type="button" data-close-modal="modalClientStatement" class="text-slate-400 hover:text-rose-600 font-bold text-lg">✕</button>
-      </div>
-      <div class="p-5 space-y-4 max-h-[80vh] overflow-y-auto custom-scroll">
-        <div class="grid grid-cols-3 gap-3 text-center">
-          <div class="p-3 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <div class="text-[11px] text-slate-500" data-i18n="stmtTotalBilled">إجمالي الفواتير</div>
-            <div id="stmtTotalBilledVal" class="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white mt-0.5">$0</div>
-          </div>
-          <div class="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60">
-            <div class="text-[11px] text-emerald-700 dark:text-emerald-300" data-i18n="stmtTotalPaid">إجمالي ما دفعته</div>
-            <div id="stmtTotalPaidVal" class="text-base sm:text-lg font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5">$0</div>
-          </div>
-          <div class="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60">
-            <div class="text-[11px] text-amber-800 dark:text-amber-300" data-i18n="stmtRemaining">الباقي عليها</div>
-            <div id="stmtRemainingVal" class="text-base sm:text-lg font-extrabold text-amber-600 dark:text-amber-400 mt-0.5">$0</div>
-          </div>
-        </div>
-
-        <div id="stmtNotesBox" class="text-xs p-3 rounded-xl bg-rose-50/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-rose-100 dark:border-slate-700"></div>
-
-        <div>
-          <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-500 mb-2" data-i18n="stmtHistoryHeading">سجل الفواتير والدفعات</h4>
-          <div id="stmtTransactionsList" class="space-y-2"></div>
-        </div>
-
-        <div class="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-          <button type="button" id="btnStmtSendWhatsapp" class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white transition">
-            <span>إرسال كشف / تذكير عبر واتساب</span>
-          </button>
-          <button type="button" data-close-modal="modalClientStatement" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" data-i18n="closeBtn">إغلاق</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Manage Service Categories (إدارة الأقسام) -->
-  <div id="modalManageCategories" class="fixed inset-0 z-40 hidden bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white dark:bg-[#1a141f] w-full max-w-lg rounded-2xl border border-rose-100 dark:border-slate-800 shadow-xl overflow-hidden flex flex-col max-h-[88vh]">
-      <div class="px-5 py-4 bg-rose-50/70 dark:bg-slate-800/60 border-b border-rose-100 dark:border-slate-800 flex items-center justify-between shrink-0">
-        <div>
-          <h3 class="font-extrabold text-base text-slate-900 dark:text-white">📂 إدارة أقسام وتصنيفات الخدمات</h3>
-          <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">أضيفي قسماً جديداً، أو عدّلي أسماء الأقسام الحالية، أو احذفي الأقسام</p>
-        </div>
-        <button type="button" data-close-modal="modalManageCategories" class="text-slate-400 hover:text-rose-600 font-bold text-lg">✕</button>
-      </div>
-
-      <div class="p-5 space-y-4 overflow-y-auto custom-scroll flex-1">
-        <!-- Add / Edit Category Form Card -->
-        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 space-y-3">
-          <input type="hidden" id="categoryEditId" value="" />
-          <div class="flex items-center justify-between">
-            <h4 id="categoryFormTitle" class="text-xs font-extrabold text-rose-600 dark:text-rose-400">إضافة قسم جديد</h4>
-            <button type="button" id="btnCancelCatEdit" class="hidden text-xs font-bold text-slate-500 hover:text-rose-600">إلغاء التعديل ✕</button>
-          </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div>
-              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">اسم القسم (بالعربي) *</label>
-              <input type="text" id="catNameArInput" placeholder="مثال: سبا ومساج" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white" />
-            </div>
-            <div>
-              <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">اسم القسم بالإنجليزية (اختياري)</label>
-              <input type="text" id="catNameEnInput" placeholder="e.g. Spa & Massage" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white" />
-            </div>
-          </div>
-          <div class="flex items-center justify-end gap-2 pt-1">
-            <button type="button" id="btnSaveCategorySubmit" class="px-4 py-2 rounded-xl text-xs sm:text-sm font-extrabold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition">
-              + حفظ القسم
-            </button>
-          </div>
-        </div>
-
-        <!-- Current Categories List -->
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <h4 class="text-xs font-bold text-slate-700 dark:text-slate-300">الأقسام الحالية المعتمدة:</h4>
-            <span id="categoriesCountBadge" class="text-[11px] font-bold text-slate-400"></span>
-          </div>
-          <div id="categoriesManagerList" class="space-y-2"></div>
-        </div>
-      </div>
-
-      <div class="px-5 py-3 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800 flex justify-end shrink-0">
-        <button type="button" data-close-modal="modalManageCategories" class="px-5 py-2 rounded-xl text-xs font-bold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-300">إغلاق</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 5. Add / Edit Service Modal -->
-  <div id="modalService" class="fixed inset-0 z-40 hidden bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white dark:bg-[#1a141f] w-full max-w-md rounded-2xl border border-rose-100 dark:border-slate-800 shadow-xl overflow-hidden">
-      <div class="px-5 py-4 bg-rose-50/70 dark:bg-slate-800/60 border-b border-rose-100 dark:border-slate-800 flex items-center justify-between">
-        <h3 class="font-extrabold text-base text-slate-900 dark:text-white" data-i18n="addServiceBtn">إضافة / تعديل خدمة</h3>
-        <button type="button" data-close-modal="modalService" class="text-slate-400 hover:text-rose-600 font-bold text-lg">✕</button>
-      </div>
-      <div class="p-5 space-y-3.5">
-        <input type="hidden" id="serviceEditId" value="" />
-        <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="serviceNameArLabel">اسم الخدمة (عربي) *</label>
-          <input type="text" id="serviceNameArInput" placeholder="مثال: سشوار وويفي" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="serviceNameEnLabel">Service Name (English)</label>
-          <input type="text" id="serviceNameEnInput" placeholder="e.g. Blowdry & Waves" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
-        </div>
-        <div class="grid grid-cols-3 gap-2.5">
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="categoryLabel">القسم</label>
-            <select id="serviceCatInput" class="w-full px-2.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-              <option value="hair" data-i18n="catHair">الشعر</option>
-              <option value="nails" data-i18n="catNails">الأظافر</option>
-              <option value="facial" data-i18n="catFacial">البشرة</option>
-              <option value="makeup" data-i18n="catMakeup">المكياج</option>
-              <option value="bridal" data-i18n="catBridal">العرائس</option>
-              <option value="waxing" data-i18n="catWaxing">إزالة الشعر</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="priceLabel">السعر ($)</label>
-            <input type="number" id="servicePriceInput" min="0" step="0.5" value="15" class="w-full px-3 py-2 rounded-xl text-sm font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
-          </div>
-          <div>
-            <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="durationLabel">المدة (دقيقة)</label>
-            <input type="number" id="serviceDurationInput" min="5" step="5" value="45" class="w-full px-3 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
-          </div>
-        </div>
-        <div class="flex items-center justify-end gap-2 pt-2">
-          <button type="button" data-close-modal="modalService" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" data-i18n="cancelBtn">إلغاء</button>
-          <button type="button" id="btnSaveServiceSubmit" class="px-5 py-2 rounded-xl text-xs sm:text-sm font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm" data-i18n="saveBtn">حفظ الخدمة</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 6. Printable Receipt Modal (معاينة وطباعة الفاتورة) -->
-  <div id="modalReceipt" class="fixed inset-0 z-40 hidden bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white dark:bg-[#1a141f] w-full max-w-md rounded-2xl border border-rose-100 dark:border-slate-800 shadow-2xl overflow-hidden">
-      <div class="px-5 py-3 bg-slate-100 dark:bg-slate-800 flex items-center justify-between no-print">
-        <span class="text-xs font-bold text-slate-700 dark:text-slate-200" data-i18n="receiptPreviewTitle">معاينة الفاتورة</span>
-        <button type="button" data-close-modal="modalReceipt" class="text-slate-400 hover:text-rose-600 font-bold text-lg">✕</button>
-      </div>
-      <div id="printableReceiptArea" class="p-6 bg-white text-slate-900 space-y-4">
-        <div class="text-center border-b border-dashed border-slate-300 pb-4">
-          <img src="data:image/jpeg;base64,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" alt="Logo" class="w-14 h-14 rounded-full mx-auto mb-2 object-cover border border-rose-300 max-w-full h-auto" />
-          <h3 id="rcptSalonName" class="font-extrabold text-lg text-slate-900">صالون رنا و جنى</h3>
-          <p id="rcptSalonAddress" class="text-xs text-slate-500"></p>
-          <p id="rcptSalonPhone" class="text-xs text-slate-500"></p>
-        </div>
-        <div class="flex items-center justify-between text-xs border-b border-slate-200 pb-2">
-          <div>
-            <div><strong data-i18n="thInvNum">رقم الفاتورة:</strong> <span id="rcptInvNum"></span></div>
-            <div><strong data-i18n="thClient">الزبونة:</strong> <span id="rcptClientName"></span></div>
-          </div>
-          <div class="text-end">
-            <div id="rcptDate"></div>
-            <div id="rcptPayMethod" class="text-slate-500"></div>
-          </div>
-        </div>
-        <table class="w-full text-xs border-collapse">
-          <thead>
-            <tr class="border-b border-slate-300 text-slate-600">
-              <th class="py-1.5 text-start" data-i18n="thServices">الخدمة</th>
-              <th class="py-1.5 text-center">العدد</th>
-              <th class="py-1.5 text-end" data-i18n="priceLabel">السعر</th>
-            </tr>
-          </thead>
-          <tbody id="rcptItemsBody" class="divide-y divide-slate-100"></tbody>
-        </table>
-        <div class="border-t border-dashed border-slate-300 pt-3 space-y-1.5 text-xs">
-          <div class="flex justify-between">
-            <span data-i18n="subtotalLabel">المجموع الفرعي:</span>
-            <span id="rcptSubtotal"></span>
-          </div>
-          <div id="rcptDiscountRow" class="flex justify-between text-slate-600">
-            <span data-i18n="discountLabel">الخصم:</span>
-            <span id="rcptDiscount"></span>
-          </div>
-          <div class="flex justify-between text-sm font-extrabold text-slate-900 pt-1 border-t border-slate-200">
-            <span data-i18n="grandTotalLabel">الإجمالي المطلوب:</span>
-            <span id="rcptTotal"></span>
-          </div>
-          <div class="flex justify-between text-xs text-slate-500">
-            <span>بالليرة اللبنانية:</span>
-            <span id="rcptTotalLbp"></span>
-          </div>
-          <div class="flex justify-between font-bold text-emerald-700 pt-1">
-            <span data-i18n="thPaid">المبلغ المدفوع:</span>
-            <span id="rcptPaid"></span>
-          </div>
-          <div class="flex justify-between font-extrabold text-rose-700 bg-rose-50 p-2 rounded-lg">
-            <span data-i18n="thRemaining">الباقي من هذه الفاتورة:</span>
-            <span id="rcptRemaining"></span>
-          </div>
-          <div id="rcptTotalClientDebtRow" class="flex justify-between text-[11px] font-bold text-amber-800 pt-1">
-            <span>إجمالي الرصيد المتبقي على الزبونة:</span>
-            <span id="rcptTotalClientDebt"></span>
-          </div>
-        </div>
-        <div class="text-center text-[11px] text-slate-400 pt-3 border-t border-dashed border-slate-200" data-i18n="receiptThankYou">
-          شكراً لزيارتكِ! نسعد برؤيتكِ دائماً ✨
-        </div>
-      </div>
-      <div class="px-5 py-3.5 bg-slate-50 dark:bg-slate-800/80 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between gap-2 no-print">
-        <button type="button" id="btnPrintReceiptNow" class="flex-1 py-2 rounded-xl text-xs font-bold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition" data-i18n="printReceiptBtn">طباعة / حفظ PDF</button>
-        <button type="button" id="btnShareReceiptWhatsapp" class="flex-1 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition">إرسال عبر واتساب</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 7. AI Studio Smart Salon Assistant Modal (No API Key Required - Dynamic Q&A Engine) -->
-  <div id="modalAiStudio" class="fixed inset-0 z-40 hidden bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white dark:bg-[#1a141f] w-full max-w-2xl rounded-2xl border border-amber-200 dark:border-amber-800/60 shadow-2xl overflow-hidden">
-      <div class="px-5 py-4 bg-gradient-to-r from-amber-500/15 via-rose-500/15 to-purple-500/15 border-b border-amber-200/60 dark:border-slate-800 flex items-center justify-between">
-        <div class="flex items-center gap-2">
-          <svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L14.8 8.5L21.5 11.2L14.8 14L12 20.5L9.2 14L2.5 11.2L9.2 8.5L12 2Z"/></svg>
-          <div>
-            <h3 class="font-extrabold text-base text-slate-900 dark:text-white" data-i18n="aiModalTitle">مساعد الصالون الذكي (AI Studio)</h3>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400" data-i18n="aiModalSub">اسألي أي سؤال عن الزبائن، الرعبون، الديون، المواعيد، الأرباح، أو اطلبي كتابة إعلان ورسائل واتساب</p>
-          </div>
-        </div>
-        <button type="button" data-close-modal="modalAiStudio" class="text-slate-400 hover:text-rose-600 font-bold text-lg">✕</button>
-      </div>
-      <div class="p-5 space-y-4 max-h-[82vh] overflow-y-auto custom-scroll">
-        <!-- Quick Smart Actions -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-          <button type="button" data-ai-action="profit_analysis" class="ai-prompt-btn p-3 rounded-xl text-start bg-rose-50/70 dark:bg-rose-950/30 hover:bg-rose-100/80 border border-rose-200 dark:border-rose-800/60 transition">
-            <div class="text-xs font-extrabold text-rose-700 dark:text-rose-300">📊 تحليل الأرباح والديون</div>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">تقرير ذكي عن المبيعات، الرعبون، المصاريف، والزبائن</p>
-          </button>
-          <button type="button" data-ai-action="debt_reminders" class="ai-prompt-btn p-3 rounded-xl text-start bg-amber-50/70 dark:bg-amber-950/30 hover:bg-amber-100/80 border border-amber-200 dark:border-amber-800/60 transition">
-            <div class="text-xs font-extrabold text-amber-800 dark:text-amber-300">💬 رسائل تذكير بالذمم</div>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">صياغة رسائل واتساب لبقة ولطيفة للزبائن لتسديد الرصيد المتبقي</p>
-          </button>
-          <button type="button" data-ai-action="promo_bundles" class="ai-prompt-btn p-3 rounded-xl text-start bg-purple-50/70 dark:bg-purple-950/30 hover:bg-purple-100/80 border border-purple-200 dark:border-purple-800/60 transition">
-            <div class="text-xs font-extrabold text-purple-800 dark:text-purple-300">✨ اقتراح عروض وباكجات</div>
-            <p class="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">باكجات مبنية على أسعار خدمات صالونك لزيادة الإقبال</p>
-          </button>
-        </div>
-
-        <!-- Interactive Question Input -->
-        <div class="space-y-2">
-          <div class="flex gap-2">
-            <input type="text" id="aiCustomPromptInput" placeholder="اكتبي سؤالك هنا (مثال: كم باقي على مايا؟ أو شو مواعيد اليوم؟ أو اكتبي إعلان عروس)..." class="flex-1 px-3.5 py-2.5 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-rose-500" />
-            <button type="button" id="btnRunCustomAi" class="px-5 py-2.5 rounded-xl text-xs sm:text-sm font-extrabold bg-gradient-to-r from-amber-500 to-rose-600 hover:from-amber-600 hover:to-rose-700 text-white shadow-sm shrink-0 transition">توليد ✨</button>
-          </div>
-          <!-- Sample clickable question chips -->
-          <div class="flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span class="text-slate-400 font-semibold">جربي السؤال:</span>
-            <button type="button" data-sample-q="مين الزبائن يلي عليهم ديون وكم المجموع؟" class="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 text-slate-600 dark:text-slate-300 transition">مين عليهم ديون؟</button>
-            <button type="button" data-sample-q="مين دافع رعبون بالحجوزات وكم باقي عليهم؟" class="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 text-slate-600 dark:text-slate-300 transition">مين دافع رعبون؟</button>
-            <button type="button" data-sample-q="شو مواعيد اليوم وكم قيمتها؟" class="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 text-slate-600 dark:text-slate-300 transition">شو مواعيد اليوم؟</button>
-            <button type="button" data-sample-q="اكتبي إعلان انستغرام لخصم 25% على البروتين والبالياج" class="px-2 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-rose-100 text-slate-600 dark:text-slate-300 transition">إعلان خصم 25% بروتين</button>
-          </div>
-        </div>
-
-        <!-- Output Area -->
-        <div class="p-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-xs font-bold text-slate-500">إجابة المساعد الذكي:</span>
-            <button type="button" id="btnCopyAiResult" class="text-xs font-bold text-rose-600 dark:text-rose-400 hover:underline">نسخ النص</button>
-          </div>
-          <div id="aiResultOutput" class="text-xs sm:text-sm leading-relaxed whitespace-pre-line text-slate-800 dark:text-slate-200 min-h-[130px]">اضغطي على أحد الأزرار أعلاه أو اكتبي أي سؤال في الخانة واضغطي "توليد ✨".</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 9. Confirmation Dialog Modal (No browser confirm() needed!) -->
-  <div id="modalConfirm" class="fixed inset-0 z-50 hidden bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-    <div class="bg-white dark:bg-[#1a141f] w-full max-w-sm rounded-2xl border border-rose-100 dark:border-slate-800 shadow-2xl p-5 space-y-4">
-      <h3 id="confirmModalTitle" class="font-extrabold text-base text-slate-900 dark:text-white">تأكيد الإجراء</h3>
-      <p id="confirmModalMessage" class="text-xs sm:text-sm text-slate-600 dark:text-slate-300"></p>
-      <div class="flex items-center justify-end gap-2 pt-2">
-        <button type="button" data-close-modal="modalConfirm" class="px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300" data-i18n="cancelBtn">إلغاء</button>
-        <button type="button" id="btnConfirmModalYes" class="px-4 py-2 rounded-xl text-xs font-bold bg-red-600 hover:bg-red-700 text-white" data-i18n="confirmYesBtn">نعم، تأكيد</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 11. Cloud Database & Cross-Device Phone Sync Modal (z-[60] so it works over Auth screen too) -->
-  <div id="modalCloudSync" class="fixed inset-0 z-[60] hidden bg-black/70 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-white dark:bg-[#1a141f] w-full max-w-xl rounded-t-3xl sm:rounded-2xl border border-sky-200 dark:border-sky-900/60 shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-      <div class="px-5 py-4 bg-gradient-to-r from-sky-600 to-rose-600 text-white flex items-center justify-between shrink-0">
-        <div class="flex items-center gap-2.5">
-          <span class="text-xl">☁️</span>
-          <div>
-            <h3 class="font-extrabold text-sm sm:text-base" data-i18n="cloudModalTitle">ربط قاعدة البيانات ومزامنة اليوزر مع التلفون</h3>
-            <p class="text-[11px] text-sky-100" data-i18n="cloudModalSub">اجعلي اللابتوب والتلفون يفتحان نفس الحساب (اليوزر) ونفس الفواتير والمواعيد</p>
-          </div>
-        </div>
-        <button type="button" data-close-modal="modalCloudSync" class="text-white/80 hover:text-white font-bold text-lg px-1">✕</button>
-      </div>
-
-      <div class="p-5 space-y-5 overflow-y-auto custom-scroll text-xs sm:text-sm">
-        <!-- Why this happens explanation -->
-        <div class="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/70 text-amber-900 dark:text-amber-200 space-y-1">
-          <div class="font-extrabold flex items-center gap-1.5">
-            <span>💡</span>
-            <span data-i18n="cloudWhyTitle">لماذا لم يظهر نفس اليوزر على التلفون تلقائياً؟</span>
-          </div>
-          <p class="text-[11px] sm:text-xs leading-relaxed" data-i18n="cloudWhyDesc">
-            التطبيق يحفظ البيانات افتراضياً داخل ذاكرة متصفح الجهاز نفسه (LocalStorage). لتوحيد اليوزر والبيانات بين التلفون واللابتوب، لديكِ حلّان جاهزان فوراً:
-          </p>
-        </div>
-
-        <!-- OPTION 1: Supabase Cloud Database Integration -->
-        <div class="p-4 rounded-2xl bg-emerald-50/70 dark:bg-slate-800/70 border-2 border-emerald-300 dark:border-emerald-800/70 space-y-3">
-          <div class="flex items-center justify-between gap-2">
-            <h4 class="font-extrabold text-emerald-900 dark:text-emerald-300 text-sm flex items-center gap-1.5">
-              <span>⚡</span>
-              <span data-i18n="cloudOpt1Title">ربط قاعدة بيانات Supabase (مزامنة تلقائية بين اللابتوب والتلفون)</span>
-            </h4>
-            <span id="modalCloudConnectedPill" class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">غير مربوط</span>
-          </div>
-
-          <!-- Step A: 1-Click SQL Table Setup in Supabase -->
-          <div class="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-emerald-200 dark:border-slate-700 space-y-2">
-            <div class="flex items-center justify-between gap-2">
-              <span class="text-[11px] font-extrabold text-slate-800 dark:text-slate-200">الخطوة 1: إنشاء جدول الصالون في Supabase (SQL Editor)</span>
-              <button type="button" id="btnCopySupabaseSql" class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition">
-                📋 نسخ كود SQL
-              </button>
-            </div>
-            <pre id="supabaseSqlCodeBlock" dir="ltr" class="p-2 rounded-lg bg-slate-900 text-emerald-300 text-[10px] font-mono overflow-x-auto leading-relaxed select-all">-- Current salon schema; preserves existing data.
-create table if not exists public.salon_data (
- id text primary key check (id='main_salon'),
- state_json jsonb not null,
- updated_at timestamptz not null default now(),
- revision bigint not null default 1
-);
-alter table public.salon_data add column if not exists revision bigint not null default 1;
-create table if not exists public.salon_members (
- user_id uuid primary key references auth.users(id) on delete cascade
-);
-alter table public.salon_data enable row level security;
-alter table public.salon_members enable row level security;
-revoke all on public.salon_data, public.salon_members from anon, authenticated;
-grant select, insert, update on public.salon_data to authenticated;
-grant select on public.salon_members to authenticated;
-drop policy if exists "Read own salon membership" on public.salon_members;
-create policy "Read own salon membership" on public.salon_members for select to authenticated
-using (user_id=(select auth.uid()));
-insert into public.salon_members(user_id)
-select id from auth.users where raw_app_meta_data-&gt;&gt;'salon_role'='owner' on conflict do nothing;
-drop policy if exists "Salon owner access" on public.salon_data;
-create policy "Salon owner access" on public.salon_data for all to authenticated
-using (id='main_salon' and exists(select 1 from public.salon_members where user_id=(select auth.uid())))
-with check (id='main_salon' and exists(select 1 from public.salon_members where user_id=(select auth.uid())));
-create or replace function public.bump_salon_revision() returns trigger
-language plpgsql security invoker set search_path='' as $$
-begin
- new.revision := old.revision+1;
- new.updated_at := clock_timestamp();
- return new;
-end;
-$$;
-drop trigger if exists bump_salon_revision on public.salon_data;
-create trigger bump_salon_revision before update on public.salon_data
-for each row execute function public.bump_salon_revision();
-do $$ begin
- if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='salon_data') then
-  alter publication supabase_realtime add table public.salon_data;
- end if;
-end $$;
-
-create or replace function public.bump_salon_revision() returns trigger
-language plpgsql security invoker set search_path='' as $$
-begin
- if current_user = 'authenticated' and coalesce(nullif(current_setting('request.headers',true),'')::jsonb-&gt;&gt;'x-client-info','') <&gt; 'rabab-salon-sync/3' then
-  raise exception 'نسخة الموقع قديمة. حدّث الصفحة قبل الحفظ (Ctrl+Shift+R).' using errcode='P0001';
- end if;
- new.revision := old.revision+1;
- new.updated_at := clock_timestamp();
- return new;
-end;
-$$;</pre>
-          </div>
-
-          <!-- Step B: Project URL & Anon/Publishable Key Inputs (Pre-configured!) -->
-          <div class="space-y-2">
-            <div>
-              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">الخطوة 2: رابط مشروع Supabase (مضبوط ومجهز داخل الكود):</label>
-              <input type="url" id="cloudDbUrlInput" dir="ltr" value="https://wicakbsswxzhwlbxhxxs.supabase.co" placeholder="https://wicakbsswxzhwlbxhxxs.supabase.co" class="w-full px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-            <div>
-              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">مفتاح Supabase Publishable / Anon Key (مضبوط ومجهز داخل الكود):</label>
-              <input type="text" id="supabaseAnonKeyInput" dir="ltr" value="sb_publishable_5YMTi1-F-PYkOn5Z1lWfIw_hpYz0jRe" placeholder="sb_publishable_..." class="w-full px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
-            </div>
-            <p class="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
-              ✅ تم دمج رابط ومفتاح مشروعك (<code>wicakbsswxzhwlbxhxxs.supabase.co</code>) داخل الكود مباشرة! فقط شغّل كود الـ SQL أعلاه مرة واحدة في Supabase &rarr; SQL Editor وسيعمل التلفون واللابتوب على نفس اليوزر والبيانات فوراً.
-            </p>
-          </div>
-
-          <div class="flex flex-wrap items-center gap-2 pt-1">
-            <button type="button" id="btnSaveCloudDbUrl" class="flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition">
-              ⚡ حفظ والاتصال بـ Supabase الآن
-            </button>
-            <button type="button" id="btnPullFromCloudNow" class="py-2.5 px-3 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition">
-              ⬇️ سحب اليوزر والبيانات من Supabase
-            </button>
-            <button type="button" id="btnDisconnectCloudDb" class="py-2 px-2.5 rounded-xl text-xs font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-red-100 hover:text-red-600 transition">
-              إلغاء الربط
-            </button>
-          </div>
-        </div>
-
-        <!-- OPTION 2: Instant 1-Click Link / Code Transfer to Phone (Zero Cloud Setup Required!) -->
-        <div class="p-4 rounded-2xl bg-rose-50/70 dark:bg-slate-800/50 border border-rose-200 dark:border-rose-900/60 space-y-3">
-          <h4 class="font-extrabold text-rose-800 dark:text-rose-300 text-sm flex items-center gap-1.5">
-            <span>2️⃣</span>
-            <span data-i18n="cloudOpt2Title">الحل الثاني (فوري بدون قاعدة بيانات): نقل اليوزر والبيانات للتلفون برابط أو كود</span>
-          </h4>
-          <p class="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed" data-i18n="cloudOpt2Desc">
-            اضغطي على <b>"نسخ رابط نقل الحساب للتلفون"</b> وأرسليه لنفسك على واتساب، وبمجرد فتح الرابط من التلفون سيأخذ التلفون نفس اليوزر والباسوورد وكل البيانات تلقائياً!
-          </p>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            <button type="button" id="btnCopySyncLinkForPhone" class="py-2.5 px-3 rounded-xl text-xs font-extrabold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition flex items-center justify-center gap-1.5">
-              <span>📲</span>
-              <span>نسخ رابط نقل اليوزر والبيانات للتلفون</span>
-            </button>
-            <button type="button" id="btnSendSyncLinkWhatsapp" class="py-2.5 px-3 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition flex items-center justify-center gap-1.5">
-              <span>💬</span>
-              <span>إرسال رابط المزامنة عبر واتساب</span>
-            </button>
-          </div>
-
-          <!-- Manual Sync Code Paste Box (for pasting on phone) -->
-          <div class="pt-2 border-t border-rose-200/60 dark:border-slate-700 space-y-2">
-            <div class="flex items-center justify-between">
-              <label class="text-[11px] font-bold text-slate-700 dark:text-slate-300">أو انسخي كود الحساب من اللابتوب والصقيه هنا على التلفون:</label>
-              <button type="button" id="btnCopyRawSyncCode" class="text-[11px] font-extrabold text-rose-600 dark:text-rose-400 hover:underline">📋 نسخ كود الحساب</button>
-            </div>
-            <div class="flex gap-2">
-              <input type="text" id="syncCodePasteInput" dir="ltr" placeholder="الصقي كود المزامنة هنا عالتلفون..." class="flex-1 px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700" />
-              <button type="button" id="btnApplySyncCode" class="px-4 py-2 rounded-xl text-xs font-extrabold bg-slate-900 dark:bg-rose-600 text-white shrink-0">تطبيق فوراً ✓</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    // ==================== BILINGUAL TRANSLATION DICTIONARY (AR / EN) ====================
-    const I18N = {
-      ar: {
-        authWelcomeTitle: 'صالون رنا و جنى',
-        manageCategoriesBtn: "إدارة الأقسام",
-        authOpenSyncBtn: 'فتح نفس اليوزر والبيانات عالتلفون (ربط قاعدة البيانات / نقل فوري)',
-        headerSyncBtn: 'مزامنة التلفون',
-        cloudModalTitle: 'ربط قاعدة البيانات ومزامنة اليوزر مع التلفون',
-        cloudModalSub: 'اجعلي اللابتوب والتلفون يفتحان نفس الحساب (اليوزر) ونفس الفواتير والمواعيد',
-        installAppBtn: 'تثبيت التطبيق',
-        mobNavHome: 'الرئيسية',
-        mobNavPos: 'فاتورة',
-        mobNavClients: 'الزبائن',
-        mobNavReports: 'الأرباح',
-        mobNavServices: 'الأسعار',
-        installModalTitle: 'تثبيت تطبيق الصالون على الموبايل 📲',
-        installModalSub: 'يعمل كتطبيق مستقل بكامل الشاشة وبدون إنترنت',
-        nativeInstallReady: 'متصفحك يدعم التثبيت المباشر بضغطة واحدة!',
-        installNowDirectBtn: '📲 تثبيت التطبيق الآن',
-        iosInstallTitle: 'لتثبيت التطبيق على iPhone / iPad (سفاري):',
-        iosStep1: 'اضغطي على زر المشاركة (Share ⬆️) في أسفل متصفح Safari.',
-        iosStep2: 'اختاري إضافة إلى الشاشة الرئيسية (Add to Home Screen ➕).',
-        iosStep3: 'اضغطي إضافة (Add) ليظهر شعار الصالون كتطبيق على شاشة هاتفك!',
-        androidInstallTitle: 'لتثبيت التطبيق على Android / Chrome:',
-        androidStep1: 'اضغطي على القائمة (⋮) أعلى المتصفح.',
-        androidStep2: 'اختاري تثبيت التطبيق (Install App) أو إضافة إلى الشاشة الرئيسية.',
-        authWelcomeSub: 'بوابة الدخول الخاصة بصاحبة وإدارة الصالون',
-        authLoginTab: 'تسجيل الدخول',
-        authRegisterTab: 'حساب جديد / تعديل الرمز',
-        authUserLabel: 'اسم المستخدم أو البريد الإلكتروني',
-        authPassLabel: 'كلمة المرور / رمز الدخول (PIN)',
-        authDefaultHint: 'الدخول الافتراضي: المستخدم admin | الرمز 1234',
-        authLoginBtn: 'دخول إلى النظام ✨',
-        authOwnerNameLabel: 'اسم صاحبة الصالون / المديرة',
-        authSaveAccountBtn: 'حفظ الحساب والدخول فوراً',
-        logoutBtn: 'خروج',
-        quickDepositBtn: 'دفع رعبون',
-        localBadge: 'حفظ محلي آمن',
-        appSubtitle: 'إدارة المواعيد • الرعبون والفواتير • ذمم الزبائن • الأرباح',
-        quickInvoiceBtn: 'فاتورة جديدة',
-        aiAssistantBtn: 'مساعد AI Studio',
-        tabDashboard: 'لوحة التحكم',
-        tabAppointments: 'المواعيد',
-        tabPos: 'الفواتير ونقطة البيع',
-        tabClients: 'الزبائن والذمم (الديون)',
-        tabServices: 'الخدمات والأسعار',
-        tabReports: 'التقارير والأرباح والمصاريف',
-        tabSettings: 'الإعدادات والنسخ الاحتياطي',
-        heroWelcome: 'أهلاً بكِ في لوحة إدارة الصالون ✨',
-        heroSubtext: 'تابعي مواعيد اليوم، عربون الحجوزات، الفواتير، المبالغ المقبوضة، والذمم المتبقية على الزبائن بكل سهولة ودقة.',
-        newAppointmentBtn: 'حجز موعد جديد',
-        createInvoiceBtn: 'تسجيل فاتورة',
-        kpiTotalBilled: 'إجمالي الفواتير (المبيعات)',
-        kpiCollected: 'المقبوض فعلياً (شامل الرعبون)',
-        kpiPendingDebt: 'باقي عند الزبائن (الذمم)',
-        kpiNetProfit: 'صافي الربح (بعد المصاريف)',
-        kpiTodayAppts: 'مواعيد اليوم',
-        dashUpcomingTitle: 'جدول مواعيد اليوم والقادمة',
-        dashUpcomingSub: 'سجلي رعبون الحجز أو حولي الموعد إلى فاتورة لإكمال الدفعة بضغطة زر',
-        dashDebtsTitle: 'الزبائن عليهم مبالغ متبقية (الذمم)',
-        dashDebtsSub: 'سجلي دفعة فورية أو رعبون أو أرسلي تذكير لطيف عبر واتساب',
-        viewAllBtn: 'عرض الكل ←',
-        chartRevenueTitle: 'حركة المبيعات، المقبوضات، والمصاريف ($)',
-        chartCatTitle: 'توزيع الإيرادات حسب قسم الخدمات',
-        apptsHeader: 'إدارة وتنظيم المواعيد ورعبون الحجز',
-        apptsSubheader: 'تنظيم الحجوزات، تسجيل دفع الرعبون عند الحجز، وتحويل الموعد لفاتورة لإكمال الدفعة',
-        showAllDatesBtn: 'كل التواريخ',
-        statusAll: 'كل الحالات',
-        statusConfirmed: 'مؤكد',
-        statusPending: 'قيد الانتظار',
-        statusCompleted: 'مكتمل',
-        statusCancelled: 'ملغى',
-        searchClientPh: 'بحث باسم الزبونة أو الهاتف...',
-        posCatalogTitle: 'اختيار الخدمات والمنتجات للفاتورة',
-        posCatalogSub: 'اضغطي على أي خدمة لإضافتها للسلة، ويمكنك تعديل السعر داخل الفاتورة',
-        searchServicePh: 'بحث عن خدمة...',
-        posCustomItemLabel: 'إضافة خدمة خاصة أو منتج غير مسجل بالقائمة:',
-        posCustomNamePh: 'اسم الخدمة أو المنتج (مثال: شامبو كيرستاس)',
-        pricePh: 'السعر ($)',
-        addBtn: '+ إضافة',
-        posCheckoutTitle: 'تفاصيل الفاتورة والحساب',
-        clearCartBtn: 'إفراغ الفاتورة',
-        selectClientLabel: 'الزبونة:',
-        quickAddClientLink: '+ زبونة جديدة سريعة',
-        payOldDebtBtn: 'تسديد دفعة',
-        discountLabel: 'الخصم ($)',
-        paymentMethodLabel: 'طريقة الدفع',
-        payCash: 'نقدي (Cash)',
-        payWhish: 'Whish / OMT',
-        payCard: 'بطاقة (Card)',
-        subtotalLabel: 'المجموع الفرعي:',
-        grandTotalLabel: 'الإجمالي المطلوب:',
-        posDepositPaidLabel: '💵 رعبون مدفوع مسبقاً عند الحجز ($):',
-        amountPaidNowLabel: 'تكملة الدفعة / المدفوع الآن ($):',
-        totalPaidWithDepositLabel: 'إجمالي المدفوع (الرعبون + دفعة اليوم):',
-        payFullBtn: 'إكمال باقي الحساب',
-        payLaterBtn: 'على الحساب (دين)',
-        remainingOnInvoiceLabel: 'الباقي على الزبونة (دين من الفاتورة):',
-        invoiceNotesPh: 'ملاحظات على الفاتورة (اختياري)...',
-        saveAndPrintInvoiceBtn: 'حفظ الفاتورة وإصدار الإيصال',
-        invoicesHistoryTitle: 'سجل الفواتير الصادرة',
-        invoicesHistorySub: 'كل فاتورة توضح قيمة الحساب، الرعبون والمدفوع، والباقي بذمة الزبونة',
-        invFilterAll: 'كل الفواتير',
-        invFilterUnpaid: 'عليها باقي (غير مسددة بالكامل)',
-        invFilterPaid: 'مسددة بالكامل (خالصة)',
-        searchInvoicePh: 'بحث برقم الفاتورة أو الزبونة...',
-        thInvNum: 'رقم الفاتورة',
-        thDate: 'التاريخ',
-        thClient: 'الزبونة',
+          <input type="text" id="cl…14507 tokens truncated…ونة',
         thServices: 'الخدمات',
         thTotal: 'الإجمالي',
         thPaid: 'المدفوع (مع الرعبون)',
@@ -3630,12 +2997,33 @@ function setupSalonBrandingUploads() {
     }
 
     // ==================== MODAL HELPERS & ACTIONS ====================
+    function filterApptServicesByCategory() {
+      const category = document.getElementById('apptCategorySelect').value;
+      let count = 0;
+      document.querySelectorAll('.appt-srv-cb').forEach(cb => {
+        const service = state.services.find(s => s.id === cb.value);
+        const visible = !!category && service && String(service.category || '__uncategorized') === category;
+        cb.closest('label').style.display = visible ? '' : 'none';
+        if (visible) count++;
+      });
+      document.getElementById('apptServicesCheckboxes').classList.toggle('hidden', !count);
+      document.getElementById('apptCategoryHint').textContent = !category
+        ? (state.lang === 'ar' ? 'اختاري القسم أولاً لعرض خدماته' : 'Choose a category to see its services')
+        : (!count ? (state.lang === 'ar' ? 'لا توجد خدمات في هذا القسم' : 'No services in this category') : '');
+    }
+
     function updateApptModalDepositPreview() {
       const selectedIds = Array.from(document.querySelectorAll('.appt-srv-cb:checked')).map(cb => cb.value);
       const estTotal = selectedIds.reduce((sum, sid) => {
         const s = state.services.find(x => x.id === sid);
         return sum + (s ? Number(s.price) : 0);
       }, 0);
+      document.getElementById('apptSelectedSummary').textContent = selectedIds.length
+        ? (state.lang === 'ar' ? 'الخدمات المختارة: ' : 'Selected services: ') + selectedIds.map(id => {
+          const service = state.services.find(s => s.id === id);
+          return service ? (state.lang === 'ar' ? service.nameAr : (service.nameEn || service.nameAr)) : '';
+        }).filter(Boolean).join('، ')
+        : '';
       const dep = Math.max(0, Number(document.getElementById('apptDepositInput')?.value) || 0);
       const rem = Math.max(0, estTotal - dep);
 
@@ -3652,7 +3040,7 @@ function setupSalonBrandingUploads() {
       clientSel.innerHTML = state.clients.map(c => `<option value="${c.id}">${c.name} (${c.phone || ''})</option>`).join('');
 
       const existing = editId ? state.appointments.find(a => a.id === editId) : null;
-      const selectedSrvs = existing ? (existing.serviceIds || []) : ['srv-1'];
+      const selectedSrvs = existing ? (existing.serviceIds || []) : [];
 
       if (existing) {
         clientSel.value = existing.clientId;
@@ -3688,6 +3076,21 @@ function setupSalonBrandingUploads() {
         cb.addEventListener('change', updateApptModalDepositPreview);
       });
 
+      const categorySelect = document.getElementById('apptCategorySelect');
+      categorySelect.replaceChildren(new Option(isAr ? 'اختاري القسم' : 'Choose a category', ''));
+      const categories = getCategories().map(c => ({ ...c }));
+      state.services.forEach(service => {
+        const id = String(service.category || '__uncategorized');
+        if (!categories.some(c => String(c.id) === id)) {
+          categories.push({ id, nameAr: service.category || 'بدون قسم', nameEn: service.category || 'Uncategorized' });
+        }
+      });
+      categories.forEach(c => categorySelect.add(new Option(isAr ? c.nameAr : (c.nameEn || c.nameAr), String(c.id))));
+      const firstSelected = state.services.find(s => selectedSrvs.includes(s.id));
+      categorySelect.value = firstSelected ? String(firstSelected.category || '__uncategorized') : '';
+      document.getElementById('apptCategoryLabel').textContent = isAr ? 'القسم' : 'Category';
+      categorySelect.onchange = filterApptServicesByCategory;
+      filterApptServicesByCategory();
       updateApptModalDepositPreview();
       document.getElementById('modalAppointment').classList.remove('hidden');
     }
@@ -5337,3 +4740,4 @@ function setupSalonBrandingUploads() {
   <script src="/salon-auth.js?v=4"></script>
 </body>
 </html>
+
