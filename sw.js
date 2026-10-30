@@ -1,10 +1,10 @@
 // Network-first service worker: deployed changes take priority over old cached pages.
-const CACHE_NAME = 'rabab-salon-online-v12';
+const CACHE_NAME = 'rabab-salon-online-v13';
 const CORE = [
   './',
   './index.html',
   './salon-history.js?v=1',
-  './salon-auth.js?v=5',
+  './salon-auth.js?v=6',
   './salon-sync.js?v=3',
   './manifest.json',
   './favicon.ico',
