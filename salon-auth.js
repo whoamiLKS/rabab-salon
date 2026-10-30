@@ -135,7 +135,7 @@
     const entry=document.createElement('button');
     entry.id='lks-salon-admin-entry';
     entry.textContent='⚙ إدارة حسابات الصالونات';
-    entry.style.cssText='position:fixed;bottom:18px;right:18px;z-index:9998;background:#831843;color:white;border:0;border-radius:12px;padding:12px 16px;font-weight:bold;box-shadow:0 4px 24px #0004;cursor:pointer';
+    entry.style.cssText='display:block;width:100%;text-align:center;background:#831843;color:white;border:0;border-radius:12px;padding:12px 16px;font-weight:bold;cursor:pointer';
     const panel=document.createElement('section');
     panel.id='lks-salon-admin-panel';
     panel.setAttribute('dir','rtl');
@@ -148,7 +148,11 @@
       <div id="lks-salon-admin-result" role="status" style="font-size:13px;white-space:pre-wrap"></div>
       <button id="lks-create-salon-submit" type="submit" style="background:#831843;color:white;border:0;border-radius:9px;padding:12px;font-weight:bold">إنشاء صالون منفصل</button>
     </form>`;
-    document.body.append(entry,panel);
+    const settingsSlot=document.getElementById('lks-salon-admin-settings-slot');
+    if (!settingsSlot) return;
+    settingsSlot.classList.remove('hidden');
+    settingsSlot.appendChild(entry);
+    document.body.appendChild(panel);
     entry.onclick=()=>{panel.style.display='flex';};
     panel.querySelector('#lks-close-salon-admin').onclick=()=>{panel.style.display='none';};
     panel.addEventListener('click',e=>{if(e.target===panel)panel.style.display='none';});
