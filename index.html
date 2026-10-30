@@ -1986,8 +1986,9 @@ $$;</pre>
     // ==================== SUPABASE CONFIGURATION ====================
     const DEFAULT_SUPABASE_URL = 'https://wicakbsswxzhwlbxhxxs.supabase.co';
     const DEFAULT_SUPABASE_ANON_KEY = 'sb_publishable_5YMTi1-F-PYkOn5Z1lWfIw_hpYz0jRe';
-    const SUPABASE_TABLE_NAME = 'salon_data';
-    const SUPABASE_ROW_ID = 'main_salon';
+    const SALON_APP_ID = 'rabab-salon';
+    const SUPABASE_TABLE_NAME = 'lks_tenant_states';
+    let activeTenantId = null;
 
     function getTodayIso() {
       const d = new Date();
@@ -2273,7 +2274,7 @@ $$;</pre>
 
     function loadState() {
       try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = null; // Cloud tenant is authoritative; do not preload a previous account's private data.
         if (raw) {
           const parsed = sanitizeState(raw);
           if (parsed && Array.isArray(parsed.clients) && Array.isArray(parsed.invoices)) {
@@ -2288,7 +2289,7 @@ $$;</pre>
 
     let cloudSyncTimeout = null;
     function saveState(skipCloudPush = false) {
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (_) {}
+      try { if(activeTenantId) localStorage.setItem(STORAGE_KEY + ':' + activeTenantId, JSON.stringify(state)); } catch (_) {}
       if (!skipCloudPush) {
         accountSync.capture();
         clearTimeout(cloudSyncTimeout);
@@ -2342,13 +2343,14 @@ $$;</pre>
       },
       restore: id => { try { return JSON.parse(localStorage.getItem(pendingKey(id))||'[]'); } catch(_) { return []; } },
       read: async () => {
-        const {data,error}=await syncClient().from(SUPABASE_TABLE_NAME).select('state_json,revision').eq('id',SUPABASE_ROW_ID).maybeSingle();
+        if(!activeTenantId) throw new Error('No salon membership');
+        const {data,error}=await syncClient().from(SUPABASE_TABLE_NAME).select('state_json,revision').eq('app_id',SALON_APP_ID).eq('tenant_id',activeTenantId).maybeSingle();
         if(error)throw error;
         return data;
       },
       commit: async (revision,value) => {
         const {data,error}=await syncClient().from(SUPABASE_TABLE_NAME)
-          .update({state_json:value}).eq('id',SUPABASE_ROW_ID).eq('revision',revision)
+          .update({state_json:value}).eq('app_id',SALON_APP_ID).eq('tenant_id',activeTenantId).eq('revision',revision)
           .select('state_json,revision').maybeSingle();
         if(error)throw error;
         return data;
@@ -2369,13 +2371,31 @@ $$;</pre>
         archiveChecked=today;
       } finally {archiveBusy=false;}
     }
-    window.initializeAccountSync = async id => {
-      archiveAccount=getSupabaseCredentials().url+':'+id;archiveChecked='';
+    window.initializeAccountSync = async userId => {
+      const {data, error} = await syncClient().from('lks_tenant_members')
+        .select('tenant_id').eq('app_id',SALON_APP_ID).eq('user_id',userId).maybeSingle();
+      if(error) throw error;
+      if(!data?.tenant_id) throw new Error('هذا الحساب غير مرتبط بأي صالون. اطلب من المدير تفعيله.');
+      const tenantId=data.tenant_id;
+      if(activeTenantId && activeTenantId!==tenantId) {
+        // Never reuse one tenant's in-memory business state or pending edits for another tenant.
+        for(const key of businessKeys) state[key]=(key==='settings'||key==='_deleted')?{}:[];
+      }
+      activeTenantId=tenantId;
+      archiveAccount=getSupabaseCredentials().url+':'+tenantId;archiveChecked='';
+      // Retain any offline changes previously queued under the legacy account key.
       try {
-        const key='rabab_before_sync_v2:'+id;
-        if(!localStorage.getItem(key)) localStorage.setItem(key,JSON.stringify(state));
+        const oldKey=pendingKey(userId),newKey=pendingKey(tenantId);
+        if(!localStorage.getItem(newKey) && localStorage.getItem(oldKey))
+          localStorage.setItem(newKey,localStorage.getItem(oldKey));
       } catch(_) {}
-      return accountSync.login(id);
+      await accountSync.login(tenantId);
+      return tenantId;
+    };
+    window.getActiveSalonTenantId = () => activeTenantId;
+    window.clearSalonTenantSession = () => {
+      activeTenantId=null;
+      try { localStorage.removeItem(STORAGE_KEY); } catch(_) {}
     };
     async function synchronizeAccount(silent) {
       try {
@@ -5374,7 +5394,7 @@ function setupSalonBrandingUploads() {
       // Cloud data is loaded once by salon-auth.js after session validation.
     });
   </script>
-  <script src="/salon-auth.js?v=4"></script>
+  <script src="/salon-auth.js?v=5"></script>
 </body>
 </html>
 
