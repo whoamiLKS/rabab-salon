@@ -2399,7 +2399,24 @@ group by app_id;</pre>
       }
 
       state.updatedAt = Date.now();
-      saveState();
+      saveState(); // Persist the change and queue it for sync first.
+
+      // Render from the updated local state immediately, even when network is down.
+      if (modalId) document.getElementById(modalId)?.classList.add('hidden');
+      renderAll();
+      if (typeof onSuccess === 'function') onSuccess();
+
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        if (button) {
+          button.disabled = false;
+          button.innerHTML = originalBtnText;
+        }
+        updateCloudStatusBadges(false);
+        showToast(state.lang === 'ar'
+          ? 'تم تنفيذ التعديل محلياً ✅ وسيُزامن تلقائياً عند رجوع الإنترنت'
+          : 'Saved locally; will sync when connection returns.', 'warning');
+        return false;
+      }
 
       let success = false;
       try {
@@ -2412,16 +2429,6 @@ group by app_id;</pre>
       if (button) {
         button.disabled = false;
         button.innerHTML = originalBtnText;
-      }
-
-      if (modalId) {
-        document.getElementById(modalId)?.classList.add('hidden');
-      }
-
-      renderAll();
-
-      if (typeof onSuccess === 'function') {
-        onSuccess();
       }
 
       if (success) {
@@ -2638,35 +2645,19 @@ group by app_id;</pre>
     }
 
     function getGlobalFinancials() {
-      let totalBilled = 0;
-      let totalCollected = 0;
+      // Reuse report ledger: opening debt is not sales and applied deposits
+      // must not count twice as cash received.
+      const ledger = SalonHistory.financials(state, ['', '']);
       let totalPendingDebt = 0;
       let totalActiveDeposits = 0;
       let clientsWithDebtCount = 0;
-
       state.clients.forEach(c => {
         const fin = getClientFinancials(c.id);
-        totalBilled += fin.totalBilled;
-        totalCollected += fin.totalPaid;
         totalPendingDebt += fin.remainingDebt;
         totalActiveDeposits += fin.activeBookingDeposits;
         if (fin.remainingDebt > 0.01) clientsWithDebtCount++;
       });
-
-      const totalExpenses = (state.expenses || []).reduce((s, e) => s + (Number(e.amount) || 0), 0);
-      const netCashProfit = totalCollected - totalExpenses;
-      const accruedNetProfit = totalBilled - totalExpenses;
-
-      return {
-        totalBilled,
-        totalCollected,
-        totalPendingDebt,
-        totalActiveDeposits,
-        clientsWithDebtCount,
-        totalExpenses,
-        netCashProfit,
-        accruedNetProfit
-      };
+      return { ...ledger, totalPendingDebt, totalActiveDeposits, clientsWithDebtCount };
     }
 
     // ==================== LANGUAGE, THEME & TAB NAVIGATION ====================
@@ -3412,13 +3403,18 @@ group by app_id;</pre>
 
       const srvStats = {};
       state.invoices.filter(inv=>inPeriod(inv.date)).forEach(inv => {
-        (inv.items || []).forEach(it => {
+        const items = inv.items || [];
+        const gross = items.reduce((sum,it) =>
+          sum + (Number(it.price)||0) * (Number(it.qty)||1),0);
+        // Apply invoice-level discount proportionally to each sold service.
+        const factor = gross > 0 ? Math.max(0,Number(inv.total)||0) / gross : 0;
+        items.forEach(it => {
           const key = it.id || it.nameAr;
           if (!srvStats[key]) {
             srvStats[key] = { nameAr: it.nameAr, nameEn: it.nameEn || it.nameAr, count: 0, rev: 0 };
           }
           srvStats[key].count += Number(it.qty) || 1;
-          srvStats[key].rev += (Number(it.price) || 0) * (Number(it.qty) || 1);
+          srvStats[key].rev += (Number(it.price)||0) * (Number(it.qty)||1) * factor;
         });
       });
 
@@ -3452,7 +3448,7 @@ group by app_id;</pre>
         });
       });
       (state.appointments || []).forEach(a => {
-        if ((Number(a.depositPaid) || 0) > 0 && a.status !== 'cancelled' && inPeriod(a.depositDate || a.date)) {
+        if ((Number(a.depositPaid) || 0) > 0 && inPeriod(a.depositDate || a.date)) {
           const c = state.clients.find(x => x.id === a.clientId);
           combinedLogs.push({
             date: a.depositDate || a.date,
