@@ -15,15 +15,29 @@
   }
   const within=(value,r)=>{const date=String(value||'').slice(0,10);return !r[0]||(/^\d{4}-\d{2}-\d{2}$/.test(date)&&date>=r[0]&&date<=r[1]);};
   function financials(s,r) {
-    const sum=(list,key)=>list.reduce((a,x)=>a+(Number(x[key])||0),0);
-    const invoices=(s.invoices||[]).filter(x=>within(x.date,r));
-    const expenses=(s.expenses||[]).filter(x=>within(x.date,r));
-    const payments=(s.debtPayments||[]).filter(x=>within(x.date,r));
-    const deposits=(s.appointments||[]).filter(x=>x.status!=='cancelled'&&within(x.depositDate||x.date,r));
-    const totalBilled=sum(invoices,'total'),totalExpenses=sum(expenses,'amount');
-    // Applied deposits were already received: never count them as new invoice cash.
-    const totalCollected=invoices.reduce((a,x)=>a+Math.max(0,(Number(x.paid)||0)-(Number(x.depositApplied)||0)),0)+sum(payments,'amount')+sum(deposits,'depositPaid');
-    return {totalBilled,totalExpenses,totalCollected,netCashProfit:totalCollected-totalExpenses,accruedNetProfit:totalBilled-totalExpenses};
+    // Period reports use transaction dates: invoices on their invoice date,
+    // and actual receipts on the date money was received.
+    const amount = x => Number(x) || 0;
+    const sum = (list,key) => list.reduce((total,row) => total + amount(row[key]),0);
+    const round = x => Math.round((x + Number.EPSILON) * 100) / 100;
+    const invoices = (s.invoices||[]).filter(x => within(x.date,r));
+    const expenses = (s.expenses||[]).filter(x => within(x.date,r));
+    const payments = (s.debtPayments||[]).filter(x => within(x.date,r));
+    // A cancelled appointment does not itself prove that its deposit was refunded.
+    // Keep received deposits in cash until a refund is explicitly recorded.
+    const deposits = (s.appointments||[]).filter(x => within(x.depositDate||x.date,r));
+    const totalBilled = round(sum(invoices,'total'));
+    const totalExpenses = round(sum(expenses,'amount'));
+    // Invoice.paid already includes depositApplied. The deposit was received
+    // earlier via an appointment/deposit payment, so subtract it here.
+    const invoiceReceipts = invoices.reduce((total,inv) =>
+      total + Math.max(0,amount(inv.paid)-amount(inv.depositApplied)),0);
+    const totalCollected = round(invoiceReceipts + sum(payments,'amount') + sum(deposits,'depositPaid'));
+    return {
+      totalBilled, totalExpenses, totalCollected,
+      netCashProfit: round(totalCollected-totalExpenses),
+      accruedNetProfit: round(totalBilled-totalExpenses)
+    };
   }
   function merge(current,input) {
     const source=input?.data||input?.state_json||input;
