@@ -4897,6 +4897,13 @@ function setupSalonBrandingUploads() {
         }
         const delApptId = target.getAttribute('data-delete-appt');
         if (delApptId) {
+          const bookingToDelete = state.appointments.find(a => a.id === delApptId);
+          if ((Number(bookingToDelete?.depositPaid) || 0) > 0) {
+            showToast(state.lang === 'ar'
+              ? 'لا يمكن حذف موعد لديه رعبون، لأن ذلك يمحو إثبات المبلغ. غيّري حالته إلى ملغى للحفاظ على الحسابات.'
+              : 'This appointment has a paid deposit. Mark it cancelled to keep its payment history.', 'warning');
+            return;
+          }
           state.appointments = state.appointments.filter(a => a.id !== delApptId);
           state._deleted = state._deleted || {};
           state._deleted[delApptId] = Date.now();
@@ -5003,6 +5010,15 @@ function setupSalonBrandingUploads() {
         }
         const delCid = target.getAttribute('data-delete-client');
         if (delCid) {
+          const hasLinkedActivity = state.invoices.some(x => x.clientId === delCid)
+            || (state.debtPayments || []).some(x => x.clientId === delCid)
+            || state.appointments.some(x => x.clientId === delCid);
+          if (hasLinkedActivity) {
+            showToast(state.lang === 'ar'
+              ? 'لا يمكن حذف زبونة لديها مواعيد أو فواتير أو دفعات. احتفظي بسجلها حتى لا تضيع الحسابات.'
+              : 'Cannot delete a client with linked appointments, invoices or payments.', 'warning');
+            return;
+          }
           openConfirmModal(
             state.lang === 'ar' ? 'حذف الزبونة' : 'Delete Client',
             state.lang === 'ar' ? 'هل أنتِ متأكدة من حذف ملف الزبونة؟' : 'Are you sure you want to delete this client?',
