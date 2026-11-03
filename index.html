@@ -3603,7 +3603,7 @@ function setupSalonBrandingUploads() {
       const card = document.getElementById('salonSpecialistsCard');
       if (!card || card.dataset.bound === '1') return;
       card.dataset.bound = '1';
-      const valid = name => !!name && name.length <= 70 && !/[<>\\x00-\\x1f]/.test(name);
+      const valid = name => !!name && name.length <= 70 && !/[<>\u0000-\u001f\u007f]/.test(name);
       async function commit(names, button) {
         state.settings = { ...(state.settings || {}), specialists: names };
         await persistAndSync({ button, successMessage: 'تم حفظ الأخصائيات ومزامنتهن بنجاح.' });
@@ -3616,9 +3616,9 @@ function setupSalonBrandingUploads() {
         if (button.id === 'salonSpecialistAdd') {
           const field = document.getElementById('salonSpecialistNew');
           const value = (field?.value || '').trim();
-          if (!valid(value) || names.length >= 50 || names.some(v => v.toLocaleLowerCase() === value.toLocaleLowerCase())) {
-            showToast('الاسم غير صالح، مكرّر، أو وصلتِ للحد المسموح.', 'error'); return;
-          }
+          if (!valid(value)) { showToast('الاسم غير صالح. اكتبي اسماً من 1 إلى 70 حرفاً بدون رموز تحكّم.', 'error'); return; }
+          if (names.length >= 50) { showToast('وصلتِ للحد الأقصى وهو 50 أخصائية.', 'error'); return; }
+          if (names.some(v => v.toLocaleLowerCase() === value.toLocaleLowerCase())) { showToast('هالاسم موجود بالفعل باللائحة.', 'error'); return; }
           next = [...names, value];
           field.value = '';
         } else if (button.dataset.specialistAction) {
