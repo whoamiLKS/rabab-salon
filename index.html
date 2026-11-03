@@ -957,7 +957,7 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="specialistLabel">الأخصائية / الكوافيرة</label>
-            <input type="text" id="apptStaffInput" list="salonSpecialistOptions" value="" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+            <select id="apptStaffInput" required class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700"></select>
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="statusLabel">حالة الموعد</label>
@@ -3587,17 +3587,23 @@ function setupSalonBrandingUploads() {
           row.append(input, save, del); list.appendChild(row);
         });
       }
-      let options = document.getElementById('salonSpecialistOptions');
-      if (!options) {
-        options = document.createElement('datalist');
-        options.id = 'salonSpecialistOptions';
-        document.body.appendChild(options);
+      const select = document.getElementById('apptStaffInput');
+      if (select && select.tagName === 'SELECT') {
+        const previous = select.value;
+        const editingId = document.getElementById('apptEditId')?.value;
+        const historical = editingId ? state.appointments.find(a => a.id === editingId)?.staff : '';
+        select.replaceChildren(...names.map(name => {
+          const option = document.createElement('option');
+          option.value = name; option.textContent = name;
+          return option;
+        }));
+        if (historical && !names.includes(historical)) {
+          const option = document.createElement('option');
+          option.value = historical; option.textContent = historical + ' (محفوظ بالحجز القديم)';
+          select.appendChild(option);
+        }
+        select.value = [previous, historical].find(value => value && [...select.options].some(o => o.value === value)) || names[0] || '';
       }
-      options.replaceChildren(...names.map(name => {
-        const option = document.createElement('option');
-        option.value = name;
-        return option;
-      }));
     }
     function bindSalonSpecialists() {
       const card = document.getElementById('salonSpecialistsCard');
@@ -3761,11 +3767,12 @@ function setupSalonBrandingUploads() {
       const existing = editId ? state.appointments.find(a => a.id === editId) : null;
       const selectedSrvs = existing ? (existing.serviceIds || []) : [];
 
+      renderSalonSpecialists();
       if (existing) {
         clientSel.value = existing.clientId;
         document.getElementById('apptDateInput').value = existing.date;
         document.getElementById('apptTimeInput').value = existing.time;
-        document.getElementById('apptStaffInput').value = existing.staff || 'ريما (Rima)';
+        document.getElementById('apptStaffInput').value = existing.staff || getSalonSpecialists()[0] || '';
         document.getElementById('apptStatusInput').value = existing.status || 'confirmed';
         document.getElementById('apptDepositInput').value = existing.depositPaid || 0;
         document.getElementById('apptDepositMethod').value = existing.depositMethod || 'cash';
@@ -4362,6 +4369,12 @@ function setupSalonBrandingUploads() {
         const depositMethod = document.getElementById('apptDepositMethod').value || 'cash';
         const notes = document.getElementById('apptNotesInput').value.trim();
         const serviceIds = Array.from(document.querySelectorAll('.appt-srv-cb:checked')).map(cb => cb.value);
+        const activeSpecialists = getSalonSpecialists();
+        const originalStaff = editId ? state.appointments.find(a => a.id === editId)?.staff : '';
+        if (!staff || (!activeSpecialists.includes(staff) && !(editId && staff === originalStaff))) {
+          showToast('اختاري أخصائية موجودة حالياً بالقائمة.', 'error');
+          return;
+        }
 
         if (!clientId) {
           showToast(state.lang === 'ar' ? 'يرجى اختيار الزبونة' : 'Please select a client', 'error');
