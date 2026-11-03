@@ -734,6 +734,16 @@
 
     <!-- ==================== TAB 7: SETTINGS & LOCAL BACKUP ==================== -->
     <section id="view-settings" class="tab-view hidden space-y-6">
+      <!-- Owner editable specialists: stored in salon settings, does not rewrite existing appointments -->
+      <div id="salonSpecialistsCard" class="bg-white dark:bg-[#1a141f] rounded-2xl border border-rose-100 dark:border-slate-800 shadow-sm p-5 space-y-4">
+        <h2 class="text-base font-extrabold text-slate-900 dark:text-white">إدارة الأخصائيات</h2>
+        <p class="text-xs text-slate-500 dark:text-slate-400">أضيفي أو عدّلي أو احذفي الأخصائيات. الحجوزات القديمة بتحتفظ بالأسماء المسجّلة فيها.</p>
+        <div class="flex flex-wrap gap-2">
+          <input id="salonSpecialistNew" type="text" maxlength="70" placeholder="اسم الأخصائية الجديدة" aria-label="اسم الأخصائية الجديدة" class="flex-1 min-w-[180px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm dark:text-white" />
+          <button id="salonSpecialistAdd" type="button" class="px-4 py-2 rounded-xl bg-rose-600 text-white text-sm font-bold">إضافة أخصائية</button>
+        </div>
+        <div id="salonSpecialistsList" class="space-y-2"></div>
+      </div>
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
         <!-- Salon Info Settings (6 cols) -->
         <div class="lg:col-span-6 bg-white dark:bg-[#1a141f] rounded-2xl border border-rose-100 dark:border-slate-800 shadow-sm p-5 space-y-4">
@@ -947,7 +957,7 @@
         <div class="grid grid-cols-2 gap-3">
           <div>
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="specialistLabel">الأخصائية / الكوافيرة</label>
-            <input type="text" id="apptStaffInput" value="ريما (Rima)" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
+            <input type="text" id="apptStaffInput" list="salonSpecialistOptions" value="" class="w-full px-3 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700" />
           </div>
           <div>
             <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1" data-i18n="statusLabel">حالة الموعد</label>
@@ -3540,8 +3550,102 @@ function setupSalonBrandingUploads() {
   }
 }
 
+
+    // Editable salon specialist names. Only future appointment pickers change; historical records stay intact.
+    function getSalonSpecialists() {
+      const saved = state.settings?.specialists;
+      const names = Array.isArray(saved) ? saved : ['RANA', 'Jana'];
+      return [...new Set(names.filter(v => typeof v === 'string').map(v => v.trim()).filter(Boolean))].slice(0, 50);
+    }
+    function renderSalonSpecialists() {
+      const names = getSalonSpecialists();
+      const list = document.getElementById('salonSpecialistsList');
+      if (list) {
+        list.replaceChildren();
+        if (!names.length) {
+          const empty = document.createElement('p');
+          empty.className = 'text-xs text-slate-500';
+          empty.textContent = 'لا توجد أخصائيات. أضيفي أول اسم من الأعلى.';
+          list.appendChild(empty);
+        }
+        names.forEach((name, index) => {
+          const row = document.createElement('div');
+          row.className = 'flex flex-wrap items-center gap-2';
+          const input = document.createElement('input');
+          input.type = 'text'; input.value = name; input.maxLength = 70;
+          input.dataset.specialistIndex = String(index);
+          input.setAttribute('aria-label', 'اسم الأخصائية');
+          input.className = 'flex-1 min-w-[150px] px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm dark:text-white';
+          const save = document.createElement('button');
+          save.type = 'button'; save.textContent = 'حفظ الاسم';
+          save.dataset.specialistAction = 'save'; save.dataset.specialistIndex = String(index);
+          save.className = 'px-3 py-2 rounded-xl bg-rose-100 text-rose-900 dark:bg-rose-950 dark:text-rose-200 text-xs font-bold';
+          const del = document.createElement('button');
+          del.type = 'button'; del.textContent = 'حذف';
+          del.dataset.specialistAction = 'delete'; del.dataset.specialistIndex = String(index);
+          del.className = 'px-3 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-white text-xs font-bold';
+          row.append(input, save, del); list.appendChild(row);
+        });
+      }
+      let options = document.getElementById('salonSpecialistOptions');
+      if (!options) {
+        options = document.createElement('datalist');
+        options.id = 'salonSpecialistOptions';
+        document.body.appendChild(options);
+      }
+      options.replaceChildren(...names.map(name => {
+        const option = document.createElement('option');
+        option.value = name;
+        return option;
+      }));
+    }
+    function bindSalonSpecialists() {
+      const card = document.getElementById('salonSpecialistsCard');
+      if (!card || card.dataset.bound === '1') return;
+      card.dataset.bound = '1';
+      const valid = name => !!name && name.length <= 70 && !/[<>\\x00-\\x1f]/.test(name);
+      async function commit(names, button) {
+        state.settings = { ...(state.settings || {}), specialists: names };
+        await persistAndSync({ button, successMessage: 'تم حفظ الأخصائيات ومزامنتهن بنجاح.' });
+      }
+      card.addEventListener('click', async event => {
+        const button = event.target.closest('button');
+        if (!button || button.disabled) return;
+        const names = getSalonSpecialists();
+        let next;
+        if (button.id === 'salonSpecialistAdd') {
+          const field = document.getElementById('salonSpecialistNew');
+          const value = (field?.value || '').trim();
+          if (!valid(value) || names.length >= 50 || names.some(v => v.toLocaleLowerCase() === value.toLocaleLowerCase())) {
+            showToast('الاسم غير صالح، مكرّر، أو وصلتِ للحد المسموح.', 'error'); return;
+          }
+          next = [...names, value];
+          field.value = '';
+        } else if (button.dataset.specialistAction) {
+          const index = Number(button.dataset.specialistIndex);
+          if (!Number.isInteger(index) || index < 0 || index >= names.length) return;
+          if (button.dataset.specialistAction === 'delete') {
+            if (!confirm('حذف الأخصائية من اللائحة؟ الحجوزات القديمة لن تتغيّر.')) return;
+            next = names.filter((_, i) => i !== index);
+          } else {
+            const field = [...card.querySelectorAll('input[data-specialist-index]')].find(el => Number(el.dataset.specialistIndex) === index);
+            const value = (field?.value || '').trim();
+            if (!valid(value) || names.some((v,i) => i !== index && v.toLocaleLowerCase() === value.toLocaleLowerCase())) {
+              showToast('اسم الأخصائية غير صالح أو مكرّر.', 'error'); return;
+            }
+            next = names.slice(); next[index] = value;
+          }
+        } else return;
+        try { await commit(next, button); } catch(error) { showToast('تعذّر حفظ الأخصائيات: ' + error.message, 'error'); }
+      });
+      document.getElementById('salonSpecialistNew')?.addEventListener('keydown', event => {
+        if (event.key === 'Enter') { event.preventDefault(); document.getElementById('salonSpecialistAdd')?.click(); }
+      });
+    }
+
     function renderAll() {
       applyLanguageAndTheme();
+      renderSalonSpecialists();
       renderDashboard();
       renderAppointments();
       renderPosAndInvoices();
@@ -3669,7 +3773,7 @@ function setupSalonBrandingUploads() {
       } else {
         document.getElementById('apptDateInput').value = getTodayIso();
         document.getElementById('apptTimeInput').value = '11:00';
-        document.getElementById('apptStaffInput').value = 'ريما (Rima)';
+        document.getElementById('apptStaffInput').value = getSalonSpecialists()[0] || '';
         document.getElementById('apptStatusInput').value = 'confirmed';
         document.getElementById('apptDepositInput').value = '0';
         document.getElementById('apptDepositMethod').value = 'cash';
@@ -5358,6 +5462,7 @@ function setupSalonBrandingUploads() {
     // Initialize Application
     window.addEventListener('DOMContentLoaded', async () => {
       setupEventListeners();
+      bindSalonSpecialists();
       setupSalonBrandingUploads();
       setupCloudSyncListeners();
       initPwaSupport();
