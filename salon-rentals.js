@@ -67,7 +67,14 @@
       const btn=event.target.closest('[data-add-pos-srv]');
       if(!btn) return;
       const s=state(), service=s && (s.services||[]).find(x=>x.id===btn.getAttribute('data-add-pos-srv'));
-      if(!service || !service.rental) return;
+      if(!service) return;
+      if(service.needsReview && !(Number(service.price)>0)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        message('السعر بعده بحاجة لتأكيد. عدّليه من قسم الخدمات والأسعار قبل إضافته إلى الفاتورة.');
+        return;
+      }
+      if(!service.rental) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       selectedService=service.id;
