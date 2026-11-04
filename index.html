@@ -207,6 +207,7 @@
         </button>
 
         <!-- Language Switcher (AR / EN) -->
+        <button id="btnToggleCurrency" type="button" class="inline-flex items-center px-2.5 py-1.5 rounded-xl text-xs font-extrabold bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">💵 USD</button>
         <button id="btnToggleLang" type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-xs sm:text-sm font-bold bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/70 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800/60 transition">
           <span id="langBadgeText">EN</span>
         </button>
@@ -780,8 +781,17 @@
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1" data-i18n="settingLbpRate">سعر صرف الدولار (ل.ل)</label>
-                <input type="number" id="setLbpRate" step="500" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold" />
+                <input type="number" id="setLbpRate" min="1" step="any" class="w-full px-3.5 py-2 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-bold" />
               </div>
+            </div>
+            <div>
+              <label for="setDisplayCurrency" class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1">عملة عرض الأسعار / Display currency</label>
+              <select id="setDisplayCurrency" class="w-full px-3.5 py-2 rounded-xl text-sm font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                <option value="USD">USD — الدولار الأمريكي</option>
+                <option value="LBP">LBP — الليرة اللبنانية</option>
+              </select>
+              <p id="currencyRatePreview" class="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300 mt-1"></p>
+              <p class="text-[11px] text-slate-500 mt-1">الأسعار والفواتير والتقارير بتظهر بالعملة المختارة؛ المبالغ المحفوظة بتبقى بالدولار.</p>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-600 dark:text-slate-300 mb-1" data-i18n="settingAddress">العنوان (يظهر على الفاتورة المطبوعة)</label>
@@ -4812,22 +4822,43 @@ function setupSalonBrandingUploads() {
       });
       // Settings & Backup
       // Each actual settings edit becomes the saved value; it never waits for a full-form snapshot.
-      const liveSettings={setSalonNameAr:'nameAr',setSalonNameEn:'nameEn',setSalonPhone:'phone',setLbpRate:'lbpRate',setSalonAddress:'address'};
+      const liveSettings={setSalonNameAr:'nameAr',setSalonNameEn:'nameEn',setSalonPhone:'phone',setSalonAddress:'address'};
       for(const [id,key] of Object.entries(liveSettings)) {
         document.getElementById(id)?.addEventListener('input', event => {
-          const value=key==='lbpRate'?Number(event.target.value):event.target.value;
-          if(key==='lbpRate' && (!Number.isFinite(value)||value<=0)) return;
+          const value=event.target.value;
           state.settings={...state.settings,[key]:value};
           saveState();
         });
       }
+      // Reprice only the view: never multiply stored invoice amounts.
+      document.getElementById('setLbpRate').addEventListener('change',event=>{
+        const rate=Number(event.target.value);
+        if(!Number.isFinite(rate)||rate<=0){
+          showToast(state.lang==='ar'?'أدخلي سعر صرف أكبر من صفر':'Invalid exchange rate','error');
+          event.target.value=salonExchangeRate();return;
+        }
+        const oldCurrency=salonCurrency(),oldRate=salonExchangeRate();
+        state.settings={...state.settings,lbpRate:rate};
+        convertEditableCurrencyFields(oldCurrency,oldRate);
+        saveState();renderAll();
+      });
+      function changeDisplayCurrency(next){
+        if(!['USD','LBP'].includes(next)||next===salonCurrency())return;
+        const oldCurrency=salonCurrency(),oldRate=salonExchangeRate();
+        state.settings={...state.settings,displayCurrency:next};
+        convertEditableCurrencyFields(oldCurrency,oldRate);
+        saveState();renderAll();
+      }
+      document.getElementById('setDisplayCurrency').addEventListener('change',event=>changeDisplayCurrency(event.target.value));
+      document.getElementById('btnToggleCurrency').addEventListener('click',()=>changeDisplayCurrency(salonCurrency()==='LBP'?'USD':'LBP'));
       document.getElementById('btnSaveSalonSettings').addEventListener('click', () => {
         state.settings = {
           ...(state.settings || {}),
           nameAr: document.getElementById('setSalonNameAr').value.trim() || 'صالون رنا و جنى',
           nameEn: document.getElementById('setSalonNameEn').value.trim() || 'Lumière Beauty Lounge',
           phone: document.getElementById('setSalonPhone').value.trim(),
-          lbpRate: Number(document.getElementById('setLbpRate').value) || 89500,
+          lbpRate: Number(document.getElementById('setLbpRate').value) || salonExchangeRate(),
+          displayCurrency: document.getElementById('setDisplayCurrency').value === 'LBP' ? 'LBP' : 'USD',
           address: document.getElementById('setSalonAddress').value.trim()
         };
         state.updatedAt = Date.now();
