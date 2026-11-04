@@ -2619,8 +2619,19 @@ group by app_id;</pre>
       }
       for(const [key,label] of Object.entries({pricePh:state.lang==='ar'?'السعر':'Price',amountPh:state.lang==='ar'?'المبلغ':'Amount'}))
         document.querySelectorAll('[data-i18n-placeholder="'+key+'"]').forEach(el=>{el.placeholder=label+' ('+unit+')';});
-      for(const key of ['priceLabel','apptDepositLabel'])
-        document.querySelectorAll('[data-i18n="'+key+'"]').forEach(el=>{el.textContent=(key==='priceLabel'?(state.lang==='ar'?'السعر (':'Price ('):(state.lang==='ar'?'💵 عربون الحجز (':'Booking Deposit ('))+unit+')';});
+      const currencyLabels={
+        priceLabel: state.lang==='ar'?'السعر':'Price',
+        apptDepositLabel: state.lang==='ar'?'💵 عربون الحجز':'Booking Deposit',
+        discountLabel: state.lang==='ar'?'الخصم':'Discount',
+        posDepositPaidLabel: state.lang==='ar'?'رعبون الحجز المدفوع مسبقاً':'Previously Paid Booking Deposit',
+        amountPaidNowLabel: state.lang==='ar'?'تكملة الدفعة / المدفوع الآن':'Amount Paid Now'
+      };
+      for(const [key,label] of Object.entries(currencyLabels))
+        document.querySelectorAll('[data-i18n="'+key+'"]').forEach(el=>{el.textContent=label+' ('+unit+')';});
+      const apptInput=document.getElementById('apptDepositInput');
+      if(apptInput)apptInput.placeholder=(state.lang==='ar'?'مبلغ العربون':'Deposit amount')+' ('+unit+')';
+      const settled=document.querySelector('[data-i18n="clientFilterSettled"]');
+      if(settled)settled.textContent=state.lang==='ar'?'حسابات خالصة (0 '+unit+' باقي)':'Settled (0 '+unit+' due)';
       const chartTitle=document.querySelector('[data-i18n="chartRevenueTitle"]');
       if(chartTitle)chartTitle.textContent=(state.lang==='ar'?'حركة المبيعات والمقبوضات والمصاريف':'Sales, collections and expenses')+' ('+unit+')';
       const alt=document.getElementById('rcptTotalLbp')?.previousElementSibling;
@@ -4900,16 +4911,18 @@ function setupSalonBrandingUploads() {
       });
 
       document.getElementById('btnExportCsvReport').addEventListener('click', () => {
-        const rows = [['Client Name', 'Phone', 'Total Billed ($)', 'Total Paid ($)', 'Active Deposit ($)', 'Remaining Debt ($)', 'Notes']];
+        const unit=salonCurrency();
+        const numberForCsv=n=>salonCurrency()==='LBP'?String(Math.round(toDisplayAmount(n))):Number(toDisplayAmount(n)).toFixed(2);
+        const rows = [['Client Name', 'Phone', 'Total Billed ('+unit+')', 'Total Paid ('+unit+')', 'Active Deposit ('+unit+')', 'Remaining Debt ('+unit+')', 'Notes']];
         state.clients.forEach(c => {
           const f = getClientFinancials(c.id);
           rows.push([
             `"${(c.name || '').replace(/"/g, '""')}"`,
             `"${(c.phone || '').replace(/"/g, '""')}"`,
-            f.totalBilled.toFixed(2),
-            f.totalPaid.toFixed(2),
-            f.activeBookingDeposits.toFixed(2),
-            f.remainingDebt.toFixed(2),
+            numberForCsv(f.totalBilled),
+            numberForCsv(f.totalPaid),
+            numberForCsv(f.activeBookingDeposits),
+            numberForCsv(f.remainingDebt),
             `"${(c.notes || '').replace(/"/g, '""')}"`
           ]);
         });
@@ -5558,7 +5571,7 @@ function setupSalonBrandingUploads() {
       // Cloud data is loaded once by salon-auth.js after session validation.
     });
   </script>
-  <script src="/salon-rentals.js?v=3"></script>
+  <script src="/salon-rentals.js?v=4"></script>
   <script src="/salon-auth.js?v=6"></script>
 </body>
 </html>
