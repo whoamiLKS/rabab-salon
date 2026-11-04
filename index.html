@@ -2161,6 +2161,7 @@ group by app_id;</pre>
         },
         categories: Array.isArray(s.categories) ? s.categories : defaultState.categories,
         services: Array.isArray(s.services) ? s.services : defaultState.services,
+        rentals: Array.isArray(s.rentals) ? s.rentals : [],
         clients: Array.isArray(s.clients) ? s.clients : defaultState.clients,
         appointments: Array.isArray(s.appointments) ? s.appointments : defaultState.appointments,
         invoices: Array.isArray(s.invoices) ? s.invoices : defaultState.invoices,
@@ -2231,6 +2232,7 @@ group by app_id;</pre>
         invoices: mergeEntityArrays(local.invoices, remote.invoices, mergedDeleted),
         appointments: mergeEntityArrays(local.appointments, remote.appointments, mergedDeleted),
         services: mergeEntityArrays(local.services, remote.services, mergedDeleted),
+        rentals: mergeEntityArrays(local.rentals, remote.rentals, mergedDeleted),
         debtPayments: mergeEntityArrays(local.debtPayments, remote.debtPayments, mergedDeleted),
         expenses: mergeEntityArrays(local.expenses, remote.expenses, mergedDeleted),
         _deleted: mergedDeleted
@@ -2298,7 +2300,7 @@ group by app_id;</pre>
       return headers;
     }
 
-    const businessKeys = ['settings','clients','invoices','appointments','services','debtPayments','expenses','_deleted','categories'];
+    const businessKeys = ['settings','clients','invoices','appointments','services','debtPayments','expenses','_deleted','categories','rentals'];
     const businessState = () => Object.fromEntries(businessKeys.map(k => [k, JSON.parse(JSON.stringify(state[k] || (k==='settings'||k==='_deleted'?{}:[])))]));
     const syncClient = () => { const c=getSupabaseCredentials(); return getSupabaseClientInstance(c.url,c.key); };
     const pendingKey = id => 'rabab_pending_v1:' + getSupabaseCredentials().url + ':' + id;
@@ -3660,6 +3662,7 @@ function setupSalonBrandingUploads() {
       renderReportsAndExpenses();
       renderSettingsForm();
       applySalonBranding();
+      window.renderSalonRentals?.();
     }
 
 
@@ -5464,6 +5467,7 @@ function setupSalonBrandingUploads() {
     window.persistAndSync = persistAndSync;
     window.saveState = saveState;
     window.renderAll = renderAll;
+    window.switchTab = switchTab;
     window.renderAuthScreen = renderAuthScreen;
     window.sanitizeState = sanitizeState;
     window.mergeStates = mergeStates;
@@ -5486,6 +5490,7 @@ function setupSalonBrandingUploads() {
       // Cloud data is loaded once by salon-auth.js after session validation.
     });
   </script>
+  <script src="/salon-rentals.js?v=1"></script>
   <script src="/salon-auth.js?v=6"></script>
 </body>
 </html>
