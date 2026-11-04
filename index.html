@@ -2929,13 +2929,13 @@ group by app_id;</pre>
               ? ['إجمالي المبيعات', 'المقبوض (مع الرعبون)', 'الباقي عند الزبائن', 'المصاريف', 'صافي الربح']
               : ['Total Billed', 'Collected (+Deposits)', 'Client Debt Due', 'Expenses', 'Net Profit'],
             datasets: [{
-              label: isAr ? 'المبلغ ($)' : 'Amount ($)',
+              label: isAr ? 'المبلغ ('+currencyUnit()+')' : 'Amount ('+currencyUnit()+')',
               data: [
-                fin.totalBilled,
-                fin.totalCollected,
-                fin.totalPendingDebt,
-                fin.totalExpenses,
-                fin.netCashProfit
+                toDisplayAmount(fin.totalBilled),
+                toDisplayAmount(fin.totalCollected),
+                toDisplayAmount(fin.totalPendingDebt),
+                toDisplayAmount(fin.totalExpenses),
+                toDisplayAmount(fin.netCashProfit)
               ],
               backgroundColor: [
                 'rgba(244, 63, 101, 0.8)',
@@ -2974,7 +2974,7 @@ group by app_id;</pre>
 
         const keys = Object.keys(catTotals);
         const labels = keys.map(k => getCategoryLabel(k));
-        const values = keys.map(k => catTotals[k]);
+        const values = keys.map(k => toDisplayAmount(catTotals[k]));
 
         if (categoryChartInstance) categoryChartInstance.destroy();
         categoryChartInstance = new Chart(ctxCat, {
@@ -3199,7 +3199,7 @@ group by app_id;</pre>
               <div class="font-bold text-xs text-slate-800 dark:text-slate-100 truncate">${isAr ? item.nameAr : item.nameEn}</div>
               <div class="flex items-center gap-1.5 mt-1">
                 <span class="text-[10px] text-slate-400">${isAr ? 'السعر:' : 'Price:'}</span>
-                <input type="number" data-cart-price="${idx}" value="${item.price}" min="0" step="0.5" class="w-16 px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-xs font-bold" />
+                <input type="number" data-cart-price="${idx}" value="${displayInputAmount(item.price)}" min="0" step="${salonCurrency()==='LBP'?'1':'any'}" class="w-16 px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 text-xs font-bold" />
               </div>
             </div>
             <div class="flex items-center gap-1 shrink-0">
@@ -3213,23 +3213,23 @@ group by app_id;</pre>
       }
 
       const subtotal = posCart.reduce((s, item) => s + (Number(item.price) || 0) * (Number(item.qty) || 1), 0);
-      const discount = Math.max(0, Number(document.getElementById('posDiscountInput').value) || 0);
+      const discount = Math.max(0, toUsdAmount(document.getElementById('posDiscountInput').value));
       const total = Math.max(0, subtotal - discount);
 
       const depositInput = document.getElementById('posDepositInput');
-      const depositPaid = Math.min(total, Math.max(0, Number(depositInput?.value) || 0));
+      const depositPaid = Math.min(total, Math.max(0, toUsdAmount(depositInput?.value)));
 
       const paidInput = document.getElementById('posPaidInput');
       if (resetPaidToFull) {
-        paidInput.value = String(Math.max(0, total - depositPaid));
+        paidInput.value = displayInputAmount(Math.max(0, total - depositPaid));
       }
-      const paidToday = Math.max(0, Number(paidInput.value) || 0);
+      const paidToday = Math.max(0, toUsdAmount(paidInput.value));
       const combinedPaid = Math.min(total, depositPaid + paidToday);
       const remaining = Math.max(0, total - combinedPaid);
 
       document.getElementById('posSubtotalDisplay').textContent = formatMoney(subtotal);
       document.getElementById('posTotalDisplay').textContent = formatMoney(total);
-      document.getElementById('posTotalLbpDisplay').textContent = formatLbp(total);
+      document.getElementById('posTotalLbpDisplay').textContent = salonCurrency()==='LBP'?formatUsd(total):formatLbp(total);
       document.getElementById('posTotalPaidCombinedDisplay').textContent = formatMoney(combinedPaid);
       document.getElementById('posRemainingDisplay').textContent = formatMoney(remaining);
     }
@@ -3794,7 +3794,7 @@ function setupSalonBrandingUploads() {
           return service ? (state.lang === 'ar' ? service.nameAr : (service.nameEn || service.nameAr)) : '';
         }).filter(Boolean).join('، ')
         : '';
-      const dep = Math.max(0, Number(document.getElementById('apptDepositInput')?.value) || 0);
+      const dep = Math.max(0, toUsdAmount(document.getElementById('apptDepositInput')?.value));
       const rem = Math.max(0, estTotal - dep);
 
       const estEl = document.getElementById('apptEstTotalVal');
@@ -3819,7 +3819,7 @@ function setupSalonBrandingUploads() {
         document.getElementById('apptTimeInput').value = existing.time;
         document.getElementById('apptStaffInput').value = existing.staff || getSalonSpecialists()[0] || '';
         document.getElementById('apptStatusInput').value = existing.status || 'confirmed';
-        document.getElementById('apptDepositInput').value = existing.depositPaid || 0;
+        document.getElementById('apptDepositInput').value = displayInputAmount(existing.depositPaid || 0);
         document.getElementById('apptDepositMethod').value = existing.depositMethod || 'cash';
         document.getElementById('apptNotesInput').value = existing.notes || '';
       } else {
@@ -3871,7 +3871,7 @@ function setupSalonBrandingUploads() {
       const c = editId ? state.clients.find(x => x.id === editId) : null;
       document.getElementById('clientNameInput').value = c ? c.name : '';
       document.getElementById('clientPhoneInput').value = c ? (c.phone || '') : '';
-      document.getElementById('clientInitialDebtInput').value = c ? (c.initialDebt || 0) : 0;
+      document.getElementById('clientInitialDebtInput').value = displayInputAmount(c ? (c.initialDebt || 0) : 0);
       document.getElementById('clientNotesInput').value = c ? (c.notes || '') : '';
       document.getElementById('modalClient').classList.remove('hidden');
     }
@@ -3885,12 +3885,12 @@ function setupSalonBrandingUploads() {
       if (mode === 'deposit') {
         btnDep.className = 'py-2 rounded-lg text-xs font-extrabold bg-purple-600 text-white shadow-sm transition';
         btnDebt.className = 'py-2 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 transition';
-        document.getElementById('payDebtAmountFieldLabel').textContent = isAr ? 'مبلغ الرعبون المدفوع الآن ($):' : 'Booking Deposit Amount ($):';
+        document.getElementById('payDebtAmountFieldLabel').textContent = isAr ? 'مبلغ الرعبون المدفوع الآن ('+currencyUnit()+'):' : 'Booking Deposit Amount ('+currencyUnit()+'):';
         document.getElementById('payDebtNote').placeholder = isAr ? 'مثال: رعبون حجز صبغة / عروس...' : 'e.g. Booking deposit...';
       } else {
         btnDebt.className = 'py-2 rounded-lg text-xs font-extrabold bg-emerald-600 text-white shadow-sm transition';
         btnDep.className = 'py-2 rounded-lg text-xs font-bold text-slate-600 dark:text-slate-300 transition';
-        document.getElementById('payDebtAmountFieldLabel').textContent = isAr ? 'المبلغ المسدد من الدين الآن ($):' : 'Debt Amount Paying Now ($):';
+        document.getElementById('payDebtAmountFieldLabel').textContent = isAr ? 'المبلغ المسدد من الدين الآن ('+currencyUnit()+'):' : 'Debt Amount Paying Now ('+currencyUnit()+'):';
         document.getElementById('payDebtNote').placeholder = isAr ? 'دفعة تسديد من الحساب المتبقي...' : 'Balance payment...';
       }
     }
@@ -3920,11 +3920,11 @@ function setupSalonBrandingUploads() {
           }, 0);
           document.getElementById('payDebtSubLabel').textContent = isAr ? 'قيمة الموعد المحجوز:' : 'Appointment Total:';
           document.getElementById('payDebtCurrentAmount').textContent = formatMoney(estTotal);
-          document.getElementById('payDebtInputAmount').value = String(apt?.depositPaid > 0 ? apt.depositPaid : Math.round(estTotal * 0.4));
+          document.getElementById('payDebtInputAmount').value = displayInputAmount(apt?.depositPaid > 0 ? apt.depositPaid : Math.round(estTotal * 0.4));
         } else {
           document.getElementById('payDebtSubLabel').textContent = isAr ? 'الرصيد المتبقي عليها حالياً:' : 'Current Balance Due:';
           document.getElementById('payDebtCurrentAmount').textContent = formatMoney(fin.remainingDebt);
-          document.getElementById('payDebtInputAmount').value = String(mode === 'debt' && fin.remainingDebt > 0 ? fin.remainingDebt : 15);
+          document.getElementById('payDebtInputAmount').value = displayInputAmount(mode === 'debt' && fin.remainingDebt > 0 ? fin.remainingDebt : 15);
         }
       }
 
@@ -4034,7 +4034,7 @@ function setupSalonBrandingUploads() {
       document.getElementById('serviceNameArInput').value = s ? s.nameAr : '';
       document.getElementById('serviceNameEnInput').value = s ? s.nameEn : '';
       populateServiceCategorySelect(s ? s.category : (getCategories()[0]?.id || 'hair'));
-      document.getElementById('servicePriceInput').value = s ? s.price : 20;
+      document.getElementById('servicePriceInput').value = displayInputAmount(s ? s.price : 20);
       document.getElementById('serviceDurationInput').value = s ? s.duration : 45;
       document.getElementById('modalService').classList.remove('hidden');
     }
@@ -4071,7 +4071,7 @@ function setupSalonBrandingUploads() {
       document.getElementById('rcptSubtotal').textContent = formatMoney(inv.subtotal || inv.total);
       document.getElementById('rcptDiscount').textContent = `-${formatMoney(inv.discount || 0)}`;
       document.getElementById('rcptTotal').textContent = formatMoney(inv.total);
-      document.getElementById('rcptTotalLbp').textContent = formatLbp(inv.total);
+      document.getElementById('rcptTotalLbp').textContent = salonCurrency()==='LBP'?formatUsd(inv.total):formatLbp(inv.total);
       document.getElementById('rcptPaid').textContent = dep > 0
         ? `${formatMoney(inv.paid)} (${isAr ? `منها رعبون ${formatMoney(dep)}` : `incl. ${formatMoney(dep)} deposit`})`
         : formatMoney(inv.paid);
@@ -4103,7 +4103,7 @@ function setupSalonBrandingUploads() {
       updatePosClientDebtBanner();
       document.getElementById('posDiscountInput').value = '0';
       const depPaid = Number(apt.depositPaid) || 0;
-      document.getElementById('posDepositInput').value = String(depPaid);
+      document.getElementById('posDepositInput').value = displayInputAmount(depPaid);
       renderPosCart(true);
 
       const isAr = state.lang === 'ar';
@@ -4410,7 +4410,7 @@ function setupSalonBrandingUploads() {
         const time = document.getElementById('apptTimeInput').value || '11:00';
         const staff = document.getElementById('apptStaffInput').value.trim();
         const status = document.getElementById('apptStatusInput').value;
-        const depositPaid = Math.max(0, Number(document.getElementById('apptDepositInput').value) || 0);
+        const depositPaid = Math.max(0, toUsdAmount(document.getElementById('apptDepositInput').value));
         const depositMethod = document.getElementById('apptDepositMethod').value || 'cash';
         const notes = document.getElementById('apptNotesInput').value.trim();
         const serviceIds = Array.from(document.querySelectorAll('.appt-srv-cb:checked')).map(cb => cb.value);
@@ -4472,7 +4472,7 @@ function setupSalonBrandingUploads() {
         const editId = document.getElementById('clientEditId').value;
         const name = document.getElementById('clientNameInput').value.trim();
         const phone = document.getElementById('clientPhoneInput').value.trim();
-        const initialDebt = Math.max(0, Number(document.getElementById('clientInitialDebtInput').value) || 0);
+        const initialDebt = Math.max(0, toUsdAmount(document.getElementById('clientInitialDebtInput').value));
         const notes = document.getElementById('clientNotesInput').value.trim();
 
         if (!name) {
@@ -4516,7 +4516,7 @@ function setupSalonBrandingUploads() {
 
       document.getElementById('btnAddCustomPosItem').addEventListener('click', () => {
         const name = document.getElementById('posCustomName').value.trim();
-        const price = Number(document.getElementById('posCustomPrice').value) || 0;
+        const price = toUsdAmount(document.getElementById('posCustomPrice').value);
         if (!name || price <= 0) {
           showToast(state.lang === 'ar' ? 'أدخلي اسم الخدمة الخاصة وسعرها' : 'Enter custom item name and price', 'error');
           return;
@@ -4559,10 +4559,10 @@ function setupSalonBrandingUploads() {
         }
 
         const subtotal = posCart.reduce((s, item) => s + (Number(item.price) || 0) * (Number(item.qty) || 1), 0);
-        const discount = Math.max(0, Number(document.getElementById('posDiscountInput').value) || 0);
+        const discount = Math.max(0, toUsdAmount(document.getElementById('posDiscountInput').value));
         const total = Math.max(0, subtotal - discount);
-        const depositApplied = Math.min(total, Math.max(0, Number(document.getElementById('posDepositInput').value) || 0));
-        const paidToday = Math.max(0, Number(document.getElementById('posPaidInput').value) || 0);
+        const depositApplied = Math.min(total, Math.max(0, toUsdAmount(document.getElementById('posDepositInput').value)));
+        const paidToday = Math.max(0, toUsdAmount(document.getElementById('posPaidInput').value));
         const paid = Math.min(total, depositApplied + paidToday);
         const method = document.getElementById('posPaymentMethod').value;
         const notes = document.getElementById('posNotesInput').value.trim();
@@ -4647,10 +4647,10 @@ function setupSalonBrandingUploads() {
             const s = state.services.find(x => x.id === sid);
             return sum + (s ? Number(s.price) : 0);
           }, 0);
-          document.getElementById('payDebtInputAmount').value = String(estTotal);
+          document.getElementById('payDebtInputAmount').value = displayInputAmount(estTotal);
         } else {
           const fin = getClientFinancials(cid);
-          document.getElementById('payDebtInputAmount').value = String(fin.remainingDebt > 0 ? fin.remainingDebt : 20);
+          document.getElementById('payDebtInputAmount').value = displayInputAmount(fin.remainingDebt > 0 ? fin.remainingDebt : 20);
         }
       });
 
@@ -4658,7 +4658,7 @@ function setupSalonBrandingUploads() {
         const cid = document.getElementById('payDebtClientId').value;
         const apptId = document.getElementById('payDebtApptId').value;
         const mode = document.getElementById('payDebtTypeMode').value || 'deposit';
-        const amount = Number(document.getElementById('payDebtInputAmount').value) || 0;
+        const amount = toUsdAmount(document.getElementById('payDebtInputAmount').value);
         const method = document.getElementById('payDebtMethod').value;
         const note = document.getElementById('payDebtNote').value.trim();
 
@@ -4766,7 +4766,7 @@ function setupSalonBrandingUploads() {
         const nameAr = document.getElementById('serviceNameArInput').value.trim();
         const nameEn = document.getElementById('serviceNameEnInput').value.trim() || nameAr;
         const category = document.getElementById('serviceCatInput').value;
-        const price = Math.max(0, Number(document.getElementById('servicePriceInput').value) || 0);
+        const price = Math.max(0, toUsdAmount(document.getElementById('servicePriceInput').value));
         const duration = Math.max(5, Number(document.getElementById('serviceDurationInput').value) || 30);
 
         if (!nameAr) {
@@ -4793,7 +4793,7 @@ function setupSalonBrandingUploads() {
       document.getElementById('btnAddExpense').addEventListener('click', () => {
         const title = document.getElementById('expTitleInput').value.trim();
         const category = document.getElementById('expCatInput').value;
-        const amount = Number(document.getElementById('expAmountInput').value) || 0;
+        const amount = toUsdAmount(document.getElementById('expAmountInput').value);
         if (!title || amount <= 0) {
           showToast(state.lang === 'ar' ? 'أدخلي بيان المصروف والمبلغ' : 'Enter expense description and amount', 'error');
           return;
@@ -5319,7 +5319,7 @@ function setupSalonBrandingUploads() {
         if (priceIdx !== null) {
           const idx = Number(priceIdx);
           if (posCart[idx]) {
-            posCart[idx].price = Math.max(0, Number(e.target.value) || 0);
+            posCart[idx].price = Math.max(0, toUsdAmount(e.target.value));
             renderPosCart(true);
           }
         }
