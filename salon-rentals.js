@@ -60,7 +60,9 @@
     $('rentalCreate').addEventListener('click', createRental);
     $('rentalsRecords').addEventListener('click', event => {
       const btn = event.target.closest('button[data-return-rental]');
-      if(btn) settleRental(btn.getAttribute('data-return-rental'));
+      if(btn) { settleRental(btn.getAttribute('data-return-rental')); return; }
+      const deleteBtn = event.target.closest('button[data-delete-rental]');
+      if(deleteBtn) deleteRental(deleteBtn.getAttribute('data-delete-rental'));
     });
     // Rental catalog entries must not bypass the refundable deposit ledger.
     document.addEventListener('click', event => {
@@ -131,7 +133,10 @@
           '" type="button" class="bg-rose-600 text-white rounded-lg px-3 py-2 text-sm">إرجاع القطعة / تسوية التأمين</button></div>'
           :'<p class="text-xs text-slate-500">التأمين المعاد: '+usd(r.refunded)+' | المحتجز: '+usd(r.withheld)+
            (r.withheldReason?' | السبب: '+escapeHtml(r.withheldReason):'')+'</p>')+
-        '</article>';
+        '<div class="flex justify-end border-t dark:border-slate-700 pt-2 mt-2">'+
+        '<button type="button" data-delete-rental="'+escapeHtml(r.id)+
+        '" class="border border-red-300 text-red-700 dark:text-red-400 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 rounded-lg px-3 py-2 text-sm font-semibold">🗑 حذف التأجير</button>'+
+        '</div></article>';
     }).join('') : '<p class="text-slate-500 text-sm">لا توجد عمليات تأجير بعد.</p>';
   }
 
@@ -201,6 +206,35 @@
         withheld,'سبب حجز التأمين: '+reason,r.updatedAt);
     }
     await window.persistAndSync({successMessage:'تم إرجاع القطعة وتسوية التأمين ✅'});
+    render();
+  }
+
+  async function deleteRental(rentalId) {
+    const s = state();
+    const r = s && (s.rentals || []).find(x => x.id === rentalId);
+    if (!r) return;
+    const linkedIds = [r.invoiceId, r.withheldInvoiceId].filter(Boolean);
+    const linkedInvoices = (s.invoices || []).filter(inv => linkedIds.includes(inv.id));
+    const pendingDeposit = r.status === 'out' ? Number(r.deposit) || 0 : 0;
+    const warning = pendingDeposit > 0
+      ? '\n⚠️ في تأمين '+usd(pendingDeposit)+' بعده غير مسوّى. الحذف ما بيرجّع المال تلقائياً.'
+      : '';
+    const question = 'حذف تأجير '+r.itemName+' للزبونة '+r.clientName+'؟'+
+      '\nرح ينحذف سجلّ التأجير وفواتير الأجرة والمبالغ المحتجزة المرتبطة فيه فقط،'+
+      ' وتتحدّث المبيعات والأرباح. ما رح تنحذف الزبونة أو فواتيرها الأخرى.'+
+      warning+'\nهالعملية ما فيك ترجعيها من الشاشة. متأكدة؟';
+    if (!window.confirm(question)) return;
+    // This is a correction/void, not a refund transaction. Require a conscious
+    // confirmation because deposits are handled outside the sales ledger.
+    const deletedAt = Date.now();
+    s.rentals = (s.rentals || []).filter(x => x.id !== rentalId);
+    s.invoices = (s.invoices || []).filter(inv => !linkedIds.includes(inv.id));
+    s._deleted = (s._deleted && typeof s._deleted === 'object') ? s._deleted : {};
+    s._deleted[rentalId] = deletedAt;
+    for (const inv of linkedInvoices) s._deleted[inv.id] = deletedAt;
+    await window.persistAndSync({
+      successMessage: 'تم حذف عملية التأجير وفواتيرها المرتبطة وتحديث الحسابات ✅'
+    });
     render();
   }
 
