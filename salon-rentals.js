@@ -129,7 +129,7 @@
   }
 
   function pushInvoice(s,clientId,title,amount,note,time) {
-    const invoiceId=id('RENTINV');
+    const invoiceId=id('RNTFEE');
     s.invoices.push({
       id:invoiceId,date:isoDay(),clientId:clientId,
       items:[{id:id('RENTITEM'), nameAr:title, nameEn:title, price:amount, qty:1}],
