@@ -4,7 +4,10 @@
   const $ = id => document.getElementById(id);
   const state = () => typeof window.getState === 'function' ? window.getState() : null;
   const escapeHtml = v => String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-  const usd = n => '$' + (Number(n) || 0).toFixed(2);
+  const usd = n => window.salonFormatMoney ? window.salonFormatMoney(n) : '$' + (Number(n) || 0).toFixed(2);
+  const moneyInput = n => window.salonMoneyInput ? window.salonMoneyInput(n) : String(Number(n) || 0);
+  const readMoney = n => window.salonMoneyToUsd ? window.salonMoneyToUsd(n) : Number(n);
+  const currencyUnit = () => window.salonMoneyCode?.() === 'LBP' ? 'ل.ل' : '$';
   const isoDay = () => { const d = new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
   const id = prefix => prefix+'-'+Date.now()+'-'+Math.random().toString(36).slice(2,10);
   const validMoney = val => Number.isFinite(Number(val)) && Number(val) >= 0 && String(val).trim() !== '';
@@ -89,8 +92,8 @@
   function serviceChanged() {
     const s=state(), service=s && rentalServices(s).find(x=>x.id===$('rentalServiceId').value);
     if(!service) return;
-    $('rentalFee').value = Number(service.price) || 0;
-    $('rentalDeposit').value = Number(service.suggestedDeposit) || 0;
+    $('rentalFee').value = moneyInput(service.price);
+    $('rentalDeposit').value = moneyInput(service.suggestedDeposit);
     $('rentalPriceHint').textContent = service.priceMax
       ? ('الأجرة المقترحة: '+usd(service.priceMin)+' إلى '+usd(service.priceMax)+' — اختاري السعر الفعلي')
       : 'يمكن تعديل الأجرة والتأمين لكل عملية';
@@ -100,6 +103,11 @@
     const s=state();
     if (!s || !$('rentalsRecords')) return;
     const oldClient=$('rentalClientId').value, oldService=$('rentalServiceId').value;
+    const unit=currencyUnit();
+    const feeLabel=$('rentalFee')?.parentElement, depositLabel=$('rentalDeposit')?.parentElement;
+    if(feeLabel) feeLabel.firstChild.textContent='الأجرة ('+unit+')';
+    if(depositLabel) depositLabel.firstChild.textContent='التأمين ('+unit+') (0 = بلا تأمين)';
+    for(const field of [$('rentalFee'),$('rentalDeposit')]) if(field) field.step=unit==='$'?'any':'1';
     const clients=(s.clients||[]), services=rentalServices(s), rentals=(s.rentals||[]);
     $('rentalClientId').innerHTML = '<option value="">زبونة جديدة / اختاري</option>'+clients.map(c =>
       '<option value="'+escapeHtml(c.id)+'">'+escapeHtml(c.name)+'</option>').join('');
@@ -124,8 +132,8 @@
         ' | الإرجاع المتوقع: '+escapeHtml(r.dueDate||'غير محدد')+'</p>'+
         (missingInvoice?'<p class="text-xs text-red-600">تنبيه: فاتورة الأجرة المرتبطة غير موجودة؛ راجعي السجل.</p>':'')+
         (out?'<div class="flex flex-wrap gap-2 items-end border-t dark:border-slate-700 pt-2">'+
-          '<label class="text-xs">المبلغ المعاد من التأمين $<input id="rental-refund-'+escapeHtml(r.id)+
-          '" type="number" min="0" max="'+dep+'" step="0.01" value="'+dep+
+          '<label class="text-xs">المبلغ المعاد من التأمين '+unit+'<input id="rental-refund-'+escapeHtml(r.id)+
+          '" type="number" min="0" max="'+moneyInput(dep)+'" step="'+(unit==='$'?'any':'1')+'" value="'+moneyInput(dep)+
           '" class="block border rounded-lg px-2 py-1 w-32 dark:bg-slate-800"></label>'+
           '<label class="text-xs flex-1">سبب حجز أي جزء من التأمين<input id="rental-reason-'+escapeHtml(r.id)+
           '" class="block border rounded-lg px-2 py-1 w-full dark:bg-slate-800" placeholder="لازم إذا انحجز مبلغ"></label>'+
@@ -156,7 +164,7 @@
     if(!s || !window.getActiveSalonTenantId?.()) return message('سجّلي الدخول بحساب الصالون أولاً.');
     const service=rentalServices(s).find(x=>x.id===$('rentalServiceId').value);
     const clientId=$('rentalClientId').value, name=$('rentalName').value.trim(), phone=$('rentalPhone').value.trim();
-    const fee=Number($('rentalFee').value), deposit=Number($('rentalDeposit').value);
+    const fee=readMoney($('rentalFee').value), deposit=readMoney($('rentalDeposit').value);
     if(!service || (!clientId && !name) || !validMoney($('rentalFee').value) || fee<=0 ||
        !validMoney($('rentalDeposit').value) || deposit<0)
       return message('حدّدي الزبونة والقطعة وأجرة أكبر من صفر، وتأمين صفر أو أكثر.');
@@ -192,8 +200,10 @@
     if(!r || r.status!=='out') return;
     const refundInput=$('rental-refund-'+rentalId),reasonInput=$('rental-reason-'+rentalId);
     if(!refundInput || !validMoney(refundInput.value)) return message('اكتبي مبلغ التأمين المرجع.');
-    const refund=Number(refundInput.value), deposit=Number(r.deposit)||0;
-    if(refund<0 || refund>deposit) return message('المبلغ المعاد لا يمكن أن يتجاوز التأمين.');
+    const deposit=Number(r.deposit)||0;
+    const enteredRefund=readMoney(refundInput.value);
+    if(enteredRefund<0 || enteredRefund>deposit+0.00002) return message('المبلغ المعاد لا يمكن أن يتجاوز التأمين.');
+    const refund=Math.min(deposit,enteredRefund);
     const withheld=Math.round((deposit-refund)*100)/100;
     const reason=String(reasonInput?.value||'').trim();
     if(withheld>0 && !reason) return message('اكتبي سبب حجز المبلغ المتبقي من التأمين.');
