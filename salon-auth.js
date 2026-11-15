@@ -23,7 +23,7 @@
 
   function ensureClient() {
     const c = getCreds();
-    if (!c.isConfigured || !window.supabase) throw new Error('Supabase is not configured.');
+    if (!c.isConfigured || !window.supabase) throw new Error('Connection is not configured.');
     if (typeof window.getSupabaseClientInstance === 'function') {
       client = window.getSupabaseClientInstance(c.url, c.key);
     } else if (!client) {
@@ -99,7 +99,7 @@
       sb = ensureClient();
     } catch (err) {
       showGate();
-      message('يرجى التحقق من إعدادات Supabase: ' + err.message);
+      message('تعذّر الاتصال. يرجى المحاولة مجدداً أو التواصل مع الدعم.');
       return;
     }
 
@@ -142,9 +142,9 @@
     panel.style.cssText='display:none;position:fixed;inset:0;background:#0009;z-index:9999;align-items:center;justify-content:center;padding:20px';
     panel.innerHTML=`<form id="lks-create-salon-form" style="width:min(100%,450px);background:white;color:#222;border-radius:18px;padding:24px;box-shadow:0 8px 45px #0004;display:grid;gap:12px">
       <div style="display:flex;align-items:center;justify-content:space-between"><h2 style="font-size:21px;font-weight:800;margin:0">إضافة صالون مستقل</h2><button type="button" id="lks-close-salon-admin" style="font-size:24px" aria-label="إغلاق">×</button></div>
-      <p style="font-size:13px">أولاً أنشئ المستخدم وكلمة مروره من Supabase → Authentication → Users. بعدين اربطه هون ببيانات صالون مستقلة.</p>
+      <p style="font-size:13px">أنشئ حساب المستخدم من لوحة إدارة الحسابات، ثم اربطه هنا ببيانات صالون مستقلة.</p>
       <label>اسم الصالون<input required minlength="2" id="lks-new-salon-name" style="width:100%;border:1px solid #aaa;border-radius:8px;padding:10px" placeholder="مثال: Liora Salon"></label>
-      <label>إيميل حساب Supabase<input required type="email" id="lks-new-salon-email" style="width:100%;border:1px solid #aaa;border-radius:8px;padding:10px" placeholder="owner@example.com" dir="ltr"></label>
+      <label>البريد الإلكتروني للحساب<input required type="email" id="lks-new-salon-email" style="width:100%;border:1px solid #aaa;border-radius:8px;padding:10px" placeholder="owner@example.com" dir="ltr"></label>
       <div id="lks-salon-admin-result" role="status" style="font-size:13px;white-space:pre-wrap"></div>
       <button id="lks-create-salon-submit" type="submit" style="background:#831843;color:white;border:0;border-radius:9px;padding:12px;font-weight:bold">إنشاء صالون منفصل</button>
     </form>`;
