@@ -142,7 +142,7 @@
       <!-- Single Unified Supabase Login Form -->
       <form id="salon-secure-login" class="p-6 space-y-4">
         <div>
-          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">البريد الإلكتروني (Supabase Email) *</label>
+          <label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">البريد الإلكتروني *</label>
           <input type="email" id="salon-auth-email" autocomplete="username" required placeholder="owner@example.com" dir="ltr" class="w-full px-3.5 py-2.5 rounded-xl text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-rose-500" />
         </div>
         <div>
@@ -153,7 +153,7 @@
           <span>دخول إلى النظام ✨</span>
         </button>
         <p id="salon-auth-message" role="alert" class="text-xs font-bold text-rose-600 dark:text-rose-400 text-center min-h-[1.25rem]"></p>
-        <p class="text-[11px] text-slate-400 dark:text-slate-500 text-center">🔐 الدخول بحساب صاحبة الصالون المعتمد في Supabase لمزامنة البيانات بين كافة الأجهزة بأمان.</p>
+        <p class="text-[11px] text-slate-400 dark:text-slate-500 text-center">🔐 الدخول بحساب صاحبة الصالون المعتمد لمزامنة البيانات بين كافة الأجهزة بأمان.</p>
       </form>
     </div>
   </div>
@@ -486,7 +486,7 @@
             <!-- Discount & Date Row -->
             <div class="grid grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1" data-i18n="discountLabel">الخصم ($)</label>
+                <label class="block text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-1" data-i18n="discountLabel">الخصم</label>
                 <select id="posDiscountType" aria-label="Discount type" class="w-full mb-2 px-2 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
                   <option value="none" data-i18n="discountNone">بدون خصم</option>
                   <option value="amount" data-i18n="discountAmount">خصم بالعملة</option>
@@ -773,7 +773,7 @@
                 <input id="salonBackgroundUpload" type="file" accept="image/png,image/jpeg,image/webp" class="block w-full max-w-full text-xs" />
                 <button type="button" id="salonBackgroundReset" class="text-xs font-semibold text-rose-600">إزالة الخلفية المخصصة</button>
               </div>
-              <p class="text-xs text-slate-500 dark:text-slate-400">الصور تُضغط تلقائياً وتُزامن عبر Supabase مع الأجهزة الأخرى.</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">الصور تُضغط تلقائياً وتُزامن تلقائياً مع الأجهزة الأخرى.</p>
             </div>
             <div>
             <div>
@@ -1440,7 +1440,7 @@
           <div class="flex items-center justify-between gap-2">
             <h4 class="font-extrabold text-emerald-900 dark:text-emerald-300 text-sm flex items-center gap-1.5">
               <span>⚡</span>
-              <span data-i18n="cloudOpt1Title">ربط قاعدة بيانات Supabase (مزامنة تلقائية بين اللابتوب والتلفون)</span>
+              <span data-i18n="cloudOpt1Title">إعداد المزامنة (مزامنة تلقائية بين اللابتوب والتلفون)</span>
             </h4>
             <span id="modalCloudConnectedPill" class="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300">غير مربوط</span>
           </div>
@@ -1448,15 +1448,15 @@
           <!-- Step A: 1-Click SQL Table Setup in Supabase -->
           <div class="p-3 rounded-xl bg-white/90 dark:bg-slate-900/90 border border-emerald-200 dark:border-slate-700 space-y-2">
             <div class="flex items-center justify-between gap-2">
-              <span class="text-[11px] font-extrabold text-slate-800 dark:text-slate-200">الخطوة 1: إنشاء جدول الصالون في Supabase (SQL Editor)</span>
+              <span class="text-[11px] font-extrabold text-slate-800 dark:text-slate-200">الخطوة 1: إعداد قاعدة بيانات الصالون</span>
               <button type="button" id="btnCopySupabaseSql" class="px-2.5 py-1 rounded-lg text-[11px] font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition">
                 📋 نسخ كود SQL
               </button>
             </div>
-            <pre id="supabaseSqlCodeBlock" dir="ltr" class="p-2 rounded-lg bg-slate-900 text-emerald-300 text-[10px] font-mono overflow-x-auto leading-relaxed select-all">-- Multi-tenant Supabase setup is managed centrally by LKS Digital.
+            <pre id="supabaseSqlCodeBlock" dir="ltr" class="p-2 rounded-lg bg-slate-900 text-emerald-300 text-[10px] font-mono overflow-x-auto leading-relaxed select-all">-- Multi-tenant database setup is managed centrally by LKS Digital.
 -- Do not re-run the legacy single-salon SQL; it would undo access restrictions.
 -- Each web app uses an app_id, and each owner has a dedicated tenant_id.
--- To add salon owners, create their Auth account in Supabase,
+-- To add salon owners, create their authentication account,
 -- then use the administrator's "إدارة حسابات الصالونات" panel.
 select app_id, count(*) as salon_count
 from public.lks_tenants
@@ -1466,24 +1466,24 @@ group by app_id;</pre>
           <!-- Step B: Project URL & Anon/Publishable Key Inputs (Pre-configured!) -->
           <div class="space-y-2">
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">الخطوة 2: رابط مشروع Supabase (مضبوط ومجهز داخل الكود):</label>
+              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">الخطوة 2: رابط الاتصال (مجهز مسبقاً):</label>
               <input type="url" id="cloudDbUrlInput" dir="ltr" value="https://wicakbsswxzhwlbxhxxs.supabase.co" placeholder="https://wicakbsswxzhwlbxhxxs.supabase.co" class="w-full px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
             <div>
-              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">مفتاح Supabase Publishable / Anon Key (مضبوط ومجهز داخل الكود):</label>
+              <label class="block text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-1">مفتاح الاتصال (مجهز مسبقاً):</label>
               <input type="text" id="supabaseAnonKeyInput" dir="ltr" value="sb_publishable_5YMTi1-F-PYkOn5Z1lWfIw_hpYz0jRe" placeholder="sb_publishable_..." class="w-full px-3 py-2 rounded-xl text-xs font-mono bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500" />
             </div>
             <p class="text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">
-              ✅ تم دمج رابط ومفتاح مشروعك (<code>wicakbsswxzhwlbxhxxs.supabase.co</code>) داخل الكود مباشرة! فقط شغّل كود الـ SQL أعلاه مرة واحدة في Supabase &rarr; SQL Editor وسيعمل التلفون واللابتوب على نفس اليوزر والبيانات فوراً.
+              ✅ الاتصال مجهّز مسبقاً لمزامنة بيانات الصالون بين أجهزتك.
             </p>
           </div>
 
           <div class="flex flex-wrap items-center gap-2 pt-1">
             <button type="button" id="btnSaveCloudDbUrl" class="flex-1 py-2.5 px-3 rounded-xl text-xs font-extrabold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition">
-              ⚡ حفظ والاتصال بـ Supabase الآن
+              ⚡ حفظ والاتصال الآن
             </button>
             <button type="button" id="btnPullFromCloudNow" class="py-2.5 px-3 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-700 text-white shadow-sm transition">
-              ⬇️ سحب اليوزر والبيانات من Supabase
+              ⬇️ مزامنة الحساب والبيانات
             </button>
             <button type="button" id="btnDisconnectCloudDb" class="py-2 px-2.5 rounded-xl text-xs font-semibold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-red-100 hover:text-red-600 transition">
               إلغاء الربط
@@ -1614,7 +1614,7 @@ group by app_id;</pre>
         selectClientLabel: 'الزبونة:',
         quickAddClientLink: '+ زبونة جديدة سريعة',
         payOldDebtBtn: 'تسديد دفعة',
-        discountLabel: 'الخصم ($)',
+        discountLabel: 'الخصم',
         discountNone: 'بدون خصم', discountAmount: 'خصم بالعملة', discountPercent: 'نسبة مئوية %',
         paymentMethodLabel: 'طريقة الدفع',
         payCash: 'نقدي (Cash)',
@@ -1816,7 +1816,7 @@ group by app_id;</pre>
         selectClientLabel: 'Client:',
         quickAddClientLink: '+ Quick Add Client',
         payOldDebtBtn: 'Pay Balance',
-        discountLabel: 'Discount ($)',
+        discountLabel: 'Discount',
         discountNone: 'No discount', discountAmount: 'Currency amount', discountPercent: 'Percentage %',
         paymentMethodLabel: 'Payment Method',
         payCash: 'Cash',
@@ -2426,7 +2426,7 @@ group by app_id;</pre>
       if (button) {
         originalBtnText = button.innerHTML;
         button.disabled = true;
-        button.innerHTML = loadingText || (state.lang === 'ar' ? 'جارٍ الحفظ في Supabase... ⏳' : 'Saving to Supabase... ⏳');
+        button.innerHTML = loadingText || (state.lang === 'ar' ? 'جارٍ الحفظ... ⏳' : 'Saving... ⏳');
       }
 
       state.updatedAt = Date.now();
@@ -2520,7 +2520,7 @@ group by app_id;</pre>
           saveState(true);
           renderAll();
           document.getElementById('modalCloudSync')?.classList.add('hidden');
-          showToast(state.lang === 'ar' ? `🎉 تم نقل الحساب (${state.auth.username}) وإعدادات Supabase إلى هذا الجهاز بنجاح!` : `🎉 Account (${state.auth.username}) & Supabase synced!`);
+          showToast(state.lang === 'ar' ? `🎉 تم نقل الحساب (${state.auth.username}) والإعدادات إلى هذا الجهاز بنجاح!` : `🎉 Account (${state.auth.username}) & settings synced!`);
           return true;
         }
       } catch (e) {
@@ -2569,20 +2569,20 @@ group by app_id;</pre>
       }
       if (statusTxt) {
         statusTxt.textContent = hasCloud
-          ? (isAr ? `⚡ متصل بـ Supabase (اليوزر الحالي: ${state.auth?.username || 'admin'})` : `⚡ Supabase Active (User: ${state.auth?.username || 'admin'})`)
+          ? (isAr ? `⚡ متصل (اليوزر الحالي: ${state.auth?.username || 'admin'})` : `⚡ Connected (User: ${state.auth?.username || 'admin'})`)
           : (isAr ? `التخزين الحالي: محلي على هذا الجهاز (اليوزر: ${state.auth?.username || 'admin'})` : `Local Storage Only (User: ${state.auth?.username || 'admin'})`);
       }
       if (false) {
         quickPullBtn.classList.toggle('hidden', !hasCloud);
       }
       if (pill) {
-        pill.textContent = hasCloud ? (isAr ? '⚡ متصل بـ Supabase' : '⚡ Supabase Connected') : (isAr ? 'محلي فقط' : 'Local Only');
+        pill.textContent = hasCloud ? (isAr ? '⚡ متصل' : '⚡ Connected') : (isAr ? 'محلي فقط' : 'Local Only');
         pill.className = hasCloud
           ? 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300'
           : 'px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300';
       }
       if (localBadge && hasCloud) {
-        localBadge.textContent = isAr ? '⚡ متزامن مع Supabase' : '⚡ Supabase Synced';
+        localBadge.textContent = isAr ? '⚡ متزامن' : '⚡ Synced';
       }
       const hintEl = document.querySelector('[data-i18n="authDefaultHint"]');
       if (hintEl && state.auth?.username) {
@@ -2635,7 +2635,7 @@ group by app_id;</pre>
         amountPaidNowLabel: state.lang==='ar'?'تكملة الدفعة / المدفوع الآن':'Amount Paid Now'
       };
       for(const [key,label] of Object.entries(currencyLabels))
-        document.querySelectorAll('[data-i18n="'+key+'"]').forEach(el=>{el.textContent=label+' ('+unit+')';});
+        document.querySelectorAll('[data-i18n="'+key+'"]').forEach(el=>{el.textContent=key==='discountLabel'?label:label+' ('+unit+')';});
       const apptInput=document.getElementById('apptDepositInput');
       if(apptInput)apptInput.placeholder=(state.lang==='ar'?'مبلغ العربون':'Deposit amount')+' ('+unit+')';
       const settled=document.querySelector('[data-i18n="clientFilterSettled"]');
@@ -4500,7 +4500,7 @@ function setupSalonBrandingUploads() {
           button: document.getElementById('btnSaveApptSubmit'),
           modalId: 'modalAppointment',
           successMessage: state.lang === 'ar'
-            ? (depositPaid > 0 ? `تم حفظ الموعد ورعبون ${formatMoney(depositPaid)} ومزامنتهما في Supabase بنجاح ✨` : 'تم حفظ الموعد ومزامنته في Supabase بنجاح ✨')
+            ? (depositPaid > 0 ? `تم حفظ الموعد ورعبون ${formatMoney(depositPaid)} ومزامنتهما بنجاح ✨` : 'تم حفظ الموعد ومزامنته بنجاح ✨')
             : 'Appointment saved and synced!'
         });
       });
@@ -4538,7 +4538,7 @@ function setupSalonBrandingUploads() {
         persistAndSync({
           button: document.getElementById('btnSaveClientSubmit'),
           modalId: 'modalClient',
-          successMessage: state.lang === 'ar' ? 'تم حفظ بيانات الزبونة ومزامنتها في Supabase بنجاح ✨' : 'Client saved and synced!',
+          successMessage: state.lang === 'ar' ? 'تم حفظ بيانات الزبونة ومزامنتها بنجاح ✨' : 'Client saved and synced!',
           onSuccess: () => {
             const posSel = document.getElementById('posClientSelect');
             const apptSel = document.getElementById('apptClientSelect');
@@ -4661,7 +4661,7 @@ function setupSalonBrandingUploads() {
 
         persistAndSync({
           button: document.getElementById('btnSaveInvoice'),
-          successMessage: state.lang === 'ar' ? 'تم حفظ الفاتورة ومزامنتها في Supabase بنجاح ✨' : 'Invoice saved & synced to Supabase!',
+          successMessage: state.lang === 'ar' ? 'تم حفظ الفاتورة ومزامنتها بنجاح ✨' : 'Invoice saved & synced!',
           onSuccess: () => {
             openReceiptModal(newInv.id);
           }
@@ -4730,7 +4730,7 @@ function setupSalonBrandingUploads() {
           persistAndSync({
             button: document.getElementById('btnConfirmDebtPayment'),
             modalId: 'modalPayDebt',
-            successMessage: state.lang === 'ar' ? `تم تسجيل رعبون الحجز (${formatMoney(amount)}) ومزامنته في Supabase بنجاح ✨` : `Recorded ${formatMoney(amount)} booking deposit!`
+            successMessage: state.lang === 'ar' ? `تم تسجيل رعبون الحجز (${formatMoney(amount)}) ومزامنته بنجاح ✨` : `Recorded ${formatMoney(amount)} booking deposit!`
           });
           return;
         }
@@ -4835,7 +4835,7 @@ function setupSalonBrandingUploads() {
         persistAndSync({
           button: document.getElementById('btnSaveServiceSubmit'),
           modalId: 'modalService',
-          successMessage: state.lang === 'ar' ? 'تم حفظ الخدمة والسعر ومزامنتها في Supabase بنجاح ✨' : 'Service saved & synced!'
+          successMessage: state.lang === 'ar' ? 'تم حفظ الخدمة والسعر ومزامنتها بنجاح ✨' : 'Service saved & synced!'
         });
       });
 
@@ -4855,7 +4855,7 @@ function setupSalonBrandingUploads() {
         document.getElementById('expAmountInput').value = '';
         persistAndSync({
           button: document.getElementById('btnAddExpense'),
-          successMessage: state.lang === 'ar' ? 'تم تسجيل المصروف ومزامنته في Supabase بنجاح ✨' : 'Expense added & synced'
+          successMessage: state.lang === 'ar' ? 'تم تسجيل المصروف ومزامنته بنجاح ✨' : 'Expense added & synced'
         });
       });
 
@@ -5487,7 +5487,7 @@ function setupSalonBrandingUploads() {
         ta.select();
         document.execCommand('copy');
         ta.remove();
-        showToast(state.lang === 'ar' ? '📋 تم نسخ كود SQL! الصقيه في Supabase -> SQL Editor واضغطي Run.' : '📋 SQL copied! Paste in Supabase SQL Editor and click Run.');
+        showToast(state.lang === 'ar' ? '📋 تم نسخ إعدادات قاعدة البيانات.' : '📋 Database setup copied.');
       });
 
 // btnAuthPullCloudQuick removed
@@ -5496,7 +5496,7 @@ function setupSalonBrandingUploads() {
         const urlVal = (document.getElementById('cloudDbUrlInput').value || '').trim().replace(/\/+$/, '');
         const keyVal = (document.getElementById('supabaseAnonKeyInput').value || '').trim();
         if (!urlVal || !keyVal) {
-          showToast(state.lang === 'ar' ? 'يرجى إدخال Project URL ومفتاح anon public key من Supabase' : 'Please enter both Supabase Project URL and anon key', 'error');
+          showToast(state.lang === 'ar' ? 'يرجى التحقق من رابط الاتصال ومفتاحه' : 'Please check the connection URL and key', 'error');
           return;
         }
         localStorage.setItem(CLOUD_URL_STORAGE_KEY, urlVal);
@@ -5524,7 +5524,7 @@ function setupSalonBrandingUploads() {
         document.getElementById('cloudDbUrlInput').value = '';
         document.getElementById('supabaseAnonKeyInput').value = '';
         updateCloudStatusBadges(false);
-        showToast(state.lang === 'ar' ? 'تم إلغاء ربط Supabase والعودة للحفظ المحلي فقط.' : 'Disconnected Supabase.');
+        showToast(state.lang === 'ar' ? 'تم إلغاء المزامنة والعودة للحفظ المحلي فقط.' : 'Sync disconnected.');
       });
 
       document.getElementById('btnCopySyncLinkForPhone')?.addEventListener('click', () => {
@@ -5611,7 +5611,7 @@ function setupSalonBrandingUploads() {
     });
   </script>
   <script src="/salon-rentals.js?v=4"></script>
-  <script src="/salon-auth.js?v=6"></script>
+  <script src="/salon-auth.js?v=7"></script>
 </body>
 </html>
 
